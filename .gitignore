@@ -1,0 +1,8 @@
+.build
+bin/consul_exporter*
+consul_exporter
+prometheus-consul_exporter*
+*.tar.gz
+*.test
+*.mprof
+*-stamp
