@@ -1,2 +1,3 @@
-# consul_exporter
-Exporter for Consul metrics
+# Consul Exporter
+
+UNDER CONSTRUCTION: waiting for PRs to integrate existing external code.
