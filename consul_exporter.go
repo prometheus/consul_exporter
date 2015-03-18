@@ -8,7 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/consul/api"
+	consul_api "github.com/hashicorp/consul/api"
+	consul "github.com/hashicorp/consul/consul/structs"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -30,13 +31,13 @@ type Exporter struct {
 	up, clusterServers                     prometheus.Gauge
 	nodeCount, serviceCount                prometheus.Counter
 	serviceNodesTotal, serviceNodesHealthy *prometheus.GaugeVec
-	client                                 *api.Client
+	client                                 *consul_api.Client
 }
 
 // NewExporter returns an initialized Exporter.
 func NewExporter(uri string, consulLocks string, timeout time.Duration) *Exporter {
 	// Set up our Consul client connection.
-	consul_client, _ := api.NewClient(&api.Config{
+	consul_client, _ := consul_api.NewClient(&consul_api.Config{
 		Address: uri,
 	})
 
@@ -104,7 +105,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect fetches the stats from configured Consul location and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	services := make(chan *api.ServiceEntry)
+	services := make(chan *consul_api.ServiceEntry)
 
 	go e.queryClient(services)
 
@@ -126,7 +127,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.serviceNodesHealthy.Collect(ch)
 }
 
-func (e *Exporter) queryClient(services chan<- *api.ServiceEntry) {
+func (e *Exporter) queryClient(services chan<- *consul_api.ServiceEntry) {
 	defer close(services)
 
 	// How many peers are in the Consul cluster?
@@ -143,7 +144,7 @@ func (e *Exporter) queryClient(services chan<- *api.ServiceEntry) {
 	e.clusterServers.Set(float64(len(peers)))
 
 	// How many nodes are registered?
-	nodes, _, err := e.client.Catalog().Nodes(&api.QueryOptions{})
+	nodes, _, err := e.client.Catalog().Nodes(&consul_api.QueryOptions{})
 
 	if err != nil {
 		// FIXME: How should we handle a partial failure like this?
@@ -152,7 +153,7 @@ func (e *Exporter) queryClient(services chan<- *api.ServiceEntry) {
 	}
 
 	// Query for the full list of services.
-	serviceNames, _, err := e.client.Catalog().Services(&api.QueryOptions{})
+	serviceNames, _, err := e.client.Catalog().Services(&consul_api.QueryOptions{})
 	e.serviceCount.Set(float64(len(serviceNames)))
 
 	if err != nil {
@@ -163,7 +164,7 @@ func (e *Exporter) queryClient(services chan<- *api.ServiceEntry) {
 	e.serviceCount.Set(float64(len(serviceNames)))
 
 	for s := range serviceNames {
-		s_entries, _, err := e.client.Health().Service(s, "", false, &api.QueryOptions{})
+		s_entries, _, err := e.client.Health().Service(s, "", false, &consul_api.QueryOptions{})
 
 		if err != nil {
 			log.Printf("Failed to query service health: %v", err)
@@ -179,7 +180,7 @@ func (e *Exporter) queryClient(services chan<- *api.ServiceEntry) {
 	}
 }
 
-func (e *Exporter) setMetrics(services <-chan *api.ServiceEntry) {
+func (e *Exporter) setMetrics(services <-chan *consul_api.ServiceEntry) {
 	for entry := range services {
 		// We have a Node, a Service, and one or more Checks. Our
 		// service-node combo is passing if all checks have a `status`
@@ -188,8 +189,9 @@ func (e *Exporter) setMetrics(services <-chan *api.ServiceEntry) {
 		passing := 1
 
 		for _, hc := range entry.Checks {
-			if hc.Status != "passing" {
+			if hc.Status != consul.HealthPassing {
 				passing = 0
+				break
 			}
 		}
 
