@@ -111,7 +111,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.mutex.Lock() // To protect metrics from concurrent collects.
 	defer e.mutex.Unlock()
 
-	// reset metrics
+	// Reset metrics.
 	e.serviceNodesTotal.Reset()
 	e.serviceNodesHealthy.Reset()
 
@@ -138,7 +138,7 @@ func (e *Exporter) queryClient(services chan<- *api.ServiceEntry) {
 		return
 	}
 
-	// we'll use peers to decide that we're up
+	// We'll use peers to decide that we're up.
 	e.up.Set(1)
 	e.clusterServers.Set(float64(len(peers)))
 
