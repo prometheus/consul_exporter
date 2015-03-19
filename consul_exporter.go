@@ -64,14 +64,14 @@ func NewExporter(uri string, consulLocks string, timeout time.Duration) *Exporte
 
 		serviceCount: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
-			Name:      "services",
+			Name:      "catalog_services",
 			Help:      "How many services are in the cluster.",
 		}),
 
 		serviceNodesTotal: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "service_nodes",
+				Name:      "catalog_service_nodes",
 				Help:      "Number of nodes currently registered for this service",
 			},
 			[]string{"service"},
@@ -80,7 +80,7 @@ func NewExporter(uri string, consulLocks string, timeout time.Duration) *Exporte
 		serviceHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "service_healthy",
+				Name:      "catalog_service_healthy",
 				Help:      "Are all checks for the service currently healthy?",
 			},
 			[]string{"service"},
@@ -89,7 +89,7 @@ func NewExporter(uri string, consulLocks string, timeout time.Duration) *Exporte
 		serviceNodesHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "service_nodes_healthy",
+				Name:      "catalog_service_node_healthy",
 				Help:      "Is this service healthy on this node?",
 			},
 			[]string{"service", "node"},
