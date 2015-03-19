@@ -28,10 +28,10 @@ type Exporter struct {
 	URI   string
 	mutex sync.RWMutex
 
-	up, clusterServers                                     prometheus.Gauge
-	nodeCount, serviceCount                                prometheus.Counter
-	serviceNodesTotal, serviceHealthy, serviceNodesHealthy *prometheus.GaugeVec
-	client                                                 *consul_api.Client
+	up, clusterServers                     prometheus.Gauge
+	nodeCount, serviceCount                prometheus.Counter
+	serviceNodesTotal, serviceNodesHealthy *prometheus.GaugeVec
+	client                                 *consul_api.Client
 }
 
 // NewExporter returns an initialized Exporter.
@@ -77,15 +77,6 @@ func NewExporter(uri string, consulLocks string, timeout time.Duration) *Exporte
 			[]string{"service"},
 		),
 
-		serviceHealthy: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "catalog_service_healthy",
-				Help:      "Are all checks for the service currently healthy?",
-			},
-			[]string{"service"},
-		),
-
 		serviceNodesHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
@@ -108,7 +99,6 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.clusterServers.Desc()
 
 	e.serviceNodesTotal.Describe(ch)
-	e.serviceHealthy.Describe(ch)
 	e.serviceNodesHealthy.Describe(ch)
 }
 
@@ -125,7 +115,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// Reset metrics.
 	e.serviceNodesTotal.Reset()
 	e.serviceNodesHealthy.Reset()
-	e.serviceHealthy.Reset()
 
 	e.setMetrics(services)
 
@@ -135,7 +124,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.serviceCount
 
 	e.serviceNodesTotal.Collect(ch)
-	e.serviceHealthy.Collect(ch)
 	e.serviceNodesHealthy.Collect(ch)
 }
 
@@ -198,8 +186,6 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
 		// We should have one ServiceEntry per node, so use that for total nodes.
 		e.serviceNodesTotal.WithLabelValues(service[0].Service.Service).Set(float64(len(service)))
 
-		all_healthy := 1
-
 		for _, entry := range service {
 			// We have a Node, a Service, and one or more Checks. Our
 			// service-node combo is passing if all checks have a `status`
@@ -210,7 +196,6 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
 			for _, hc := range entry.Checks {
 				if hc.Status != consul.HealthPassing {
 					passing = 0
-					all_healthy = 0
 					break
 				}
 			}
@@ -219,8 +204,6 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
 
 			e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node).Set(float64(passing))
 		}
-
-		e.serviceHealthy.WithLabelValues(service[0].Service.Service).Set(float64(all_healthy))
 	}
 }
 
