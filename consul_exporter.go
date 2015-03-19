@@ -52,8 +52,8 @@ func NewExporter(uri string, consulLocks string, timeout time.Duration) *Exporte
 
 		clusterServers: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
-			Name:      "cluster_servers",
-			Help:      "How many peers are in the cluster.",
+			Name:      "raft_peers",
+			Help:      "How many peers (servers) are in the Raft cluster.",
 		}),
 
 		nodeCount: prometheus.NewGauge(prometheus.GaugeOpts{
