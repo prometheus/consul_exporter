@@ -209,15 +209,15 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
 
 func main() {
 	var (
-		listenAddress = flag.String("web.listen-address", ":9105", "Address to listen on for web interface and telemetry.")
+		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		consulServer  = flag.String("consul.server", "localhost:8500", "URI for Consul server.")
-		consulLocks   = flag.String("consul.locks", "", "If specified, keys to check for session locks. Comma-seperated list of keys.")
-		consulTimeout = flag.Duration("consul.timeout", 5*time.Second, "Timeout for trying to get stats from Consul.")
+		consulServer  = flag.String("consul.server", "localhost:8500", "HTTP API address of a Consul server or agent.")
+		//consulLocks   = flag.String("consul.locks", "", "If specified, keys to check for session locks. Comma-seperated list of keys.")
+		//consulTimeout = flag.Duration("consul.timeout", 5*time.Second, "Timeout for trying to get stats from Consul.")
 	)
 	flag.Parse()
 
-	exporter := NewExporter(*consulServer, *consulLocks, *consulTimeout)
+	exporter := NewExporter(*consulServer, "", 5*time.Second)
 	prometheus.MustRegister(exporter)
 
 	log.Printf("Starting Server: %s", *listenAddress)
