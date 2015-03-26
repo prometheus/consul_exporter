@@ -6,7 +6,6 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"sync"
-	"time"
 
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
@@ -35,7 +34,7 @@ type Exporter struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(uri string, consulLocks string, timeout time.Duration) *Exporter {
+func NewExporter(uri string) *Exporter {
 	// Set up our Consul client connection.
 	consul_client, _ := consul_api.NewClient(&consul_api.Config{
 		Address: uri,
@@ -212,12 +211,10 @@ func main() {
 		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		consulServer  = flag.String("consul.server", "localhost:8500", "HTTP API address of a Consul server or agent.")
-		//consulLocks   = flag.String("consul.locks", "", "If specified, keys to check for session locks. Comma-seperated list of keys.")
-		//consulTimeout = flag.Duration("consul.timeout", 5*time.Second, "Timeout for trying to get stats from Consul.")
 	)
 	flag.Parse()
 
-	exporter := NewExporter(*consulServer, "", 5*time.Second)
+	exporter := NewExporter(*consulServer)
 	prometheus.MustRegister(exporter)
 
 	log.Printf("Starting Server: %s", *listenAddress)
