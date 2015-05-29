@@ -2,14 +2,15 @@ package main
 
 import (
 	"flag"
-	"log"
 	"net/http"
 	_ "net/http/pprof"
 	"sync"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/log"
+
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
