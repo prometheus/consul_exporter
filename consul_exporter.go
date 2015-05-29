@@ -135,7 +135,7 @@ func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry) {
 
 	if err != nil {
 		e.up.Set(0)
-		log.Printf("Query error is %v", err)
+		log.Errorf("Query error is %v", err)
 		return
 	}
 
@@ -167,7 +167,7 @@ func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry) {
 		s_entries, _, err := e.client.Health().Service(s, "", false, &consul_api.QueryOptions{})
 
 		if err != nil {
-			log.Printf("Failed to query service health: %v", err)
+			log.Errorf("Failed to query service health: %v", err)
 			continue
 		}
 
@@ -200,7 +200,7 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
 				}
 			}
 
-			log.Printf("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
+			log.Infof("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
 
 			e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node).Set(float64(passing))
 		}
@@ -218,7 +218,7 @@ func main() {
 	exporter := NewExporter(*consulServer)
 	prometheus.MustRegister(exporter)
 
-	log.Printf("Starting Server: %s", *listenAddress)
+	log.Infof("Starting Server: %s", *listenAddress)
 	http.Handle(*metricsPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
