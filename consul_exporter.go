@@ -28,10 +28,10 @@ type Exporter struct {
 	URI   string
 	mutex sync.RWMutex
 
-	up, clusterServers                     prometheus.Gauge
-	nodeCount, serviceCount                prometheus.Counter
-	serviceNodesTotal, serviceNodesHealthy *prometheus.GaugeVec
-	client                                 *consul_api.Client
+	up, clusterServers                                        prometheus.Gauge
+	nodeCount, serviceCount                                   prometheus.Counter
+	serviceNodesTotal, serviceNodesHealthy, nodeChecksPassing *prometheus.GaugeVec
+	client                                                    *consul_api.Client
 }
 
 // NewExporter returns an initialized Exporter.
@@ -86,6 +86,15 @@ func NewExporter(uri string) *Exporter {
 			[]string{"service", "node"},
 		),
 
+		nodeChecksPassing: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "agent_check_passing",
+				Help:      "Is this check passing on this node?",
+			},
+			[]string{"check", "node"},
+		),
+
 		client: consul_client,
 	}
 }
@@ -106,8 +115,9 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	services := make(chan []*consul_api.ServiceEntry)
+	checks := make(chan []*consul_api.HealthCheck)
 
-	go e.queryClient(services)
+	go e.queryClient(services, checks)
 
 	e.mutex.Lock() // To protect metrics from concurrent collects.
 	defer e.mutex.Unlock()
@@ -115,8 +125,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// Reset metrics.
 	e.serviceNodesTotal.Reset()
 	e.serviceNodesHealthy.Reset()
+	e.nodeChecksPassing.Reset()
 
-	e.setMetrics(services)
+	e.setMetrics(services, checks)
 
 	ch <- e.up
 	ch <- e.clusterServers
@@ -125,10 +136,13 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	e.serviceNodesTotal.Collect(ch)
 	e.serviceNodesHealthy.Collect(ch)
+	e.nodeChecksPassing.Collect(ch)
 }
 
-func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry) {
+func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry, checks chan<- []*consul_api.HealthCheck) {
+
 	defer close(services)
+	defer close(checks)
 
 	// How many peers are in the Consul cluster?
 	peers, err := e.client.Status().Peers()
@@ -173,9 +187,19 @@ func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry) {
 
 		services <- s_entries
 	}
+
+	for _, n := range nodes {
+		c_entries, _, err := e.client.Health().Node(n.Node, &consul_api.QueryOptions{})
+		if err != nil {
+			log.Errorf("Failed to query service health: %v", err)
+			continue
+		}
+		checks <- c_entries
+
+	}
 }
 
-func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
+func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry, checks <-chan []*consul_api.HealthCheck) {
 	// Each service will be an array of ServiceEntry structs.
 	for service := range services {
 		if len(service) == 0 {
@@ -205,6 +229,20 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
 			e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node).Set(float64(passing))
 		}
 	}
+	for c := range checks {
+		for _, hc := range c {
+			passing := 0
+			if hc.ServiceID == "" {
+				if hc.Status == consul.HealthPassing {
+					passing = 1
+					e.nodeChecksPassing.WithLabelValues(hc.CheckID, hc.Node).Set(float64(passing))
+				}
+
+				log.Infof("%v/%v status is %v", hc.CheckID, hc.Node, passing)
+			}
+		}
+	}
+
 }
 
 func main() {
