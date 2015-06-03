@@ -92,7 +92,7 @@ func NewExporter(uri string) *Exporter {
 				Name:      "agent_check",
 				Help:      "Is this check passing on this node?",
 			},
-			[]string{"check", "node", "status"},
+			[]string{"check", "node"},
 		),
 
 		client: consul_client,
@@ -235,11 +235,13 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry, checks
 		case entry, b := <-checks:
 			running = b
 			for _, hc := range entry {
+				passing := 1
 				if hc.ServiceID == "" {
-
-					e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node, hc.Status).Set(float64(1))
-
-					log.Infof("CHECKS: %v/%v status is %v", hc.CheckID, hc.Node, hc.Status)
+					if hc.Status != consul.HealthPassing {
+						passing = 0
+					}
+					e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(float64(passing))
+					log.Infof("CHECKS: %v/%v status is %d", hc.CheckID, hc.Node, passing)
 				}
 			}
 		}
