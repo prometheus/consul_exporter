@@ -4,6 +4,8 @@ import (
 	"flag"
 	"net/http"
 	_ "net/http/pprof"
+	"regexp"
+	"strconv"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -28,14 +30,16 @@ type Exporter struct {
 	URI   string
 	mutex sync.RWMutex
 
-	up, clusterServers                     prometheus.Gauge
-	nodeCount, serviceCount                prometheus.Counter
-	serviceNodesTotal, serviceNodesHealthy *prometheus.GaugeVec
-	client                                 *consul_api.Client
+	up, clusterServers                                prometheus.Gauge
+	nodeCount, serviceCount                           prometheus.Counter
+	serviceNodesTotal, serviceNodesHealthy, keyValues *prometheus.GaugeVec
+	client                                            *consul_api.Client
+	kvPrefix					  string
+	kvFilter					  *regexp.Regexp
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(uri string) *Exporter {
+func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 	// Set up our Consul client connection.
 	consul_client, _ := consul_api.NewClient(&consul_api.Config{
 		Address: uri,
@@ -86,7 +90,18 @@ func NewExporter(uri string) *Exporter {
 			[]string{"service", "node"},
 		),
 
+		keyValues: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "catalog_kv",
+				Help:      "key/value",
+			},
+			[]string{"key"},
+		),
+
 		client: consul_client,
+		kvPrefix: kvPrefix,
+		kvFilter: regexp.MustCompile(kvFilter),
 	}
 }
 
@@ -100,6 +115,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 
 	e.serviceNodesTotal.Describe(ch)
 	e.serviceNodesHealthy.Describe(ch)
+	e.keyValues.Describe(ch)
 }
 
 // Collect fetches the stats from configured Consul location and delivers them
@@ -125,6 +141,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	e.serviceNodesTotal.Collect(ch)
 	e.serviceNodesHealthy.Collect(ch)
+
+	e.keyValues.Reset()
+	e.setKeyValues()
+	e.keyValues.Collect(ch)
 }
 
 func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry) {
@@ -207,15 +227,35 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
 	}
 }
 
+func (e *Exporter) setKeyValues() {
+	kv := e.client.KV()
+
+	pairs, _, err := kv.List(e.kvPrefix, &consul_api.QueryOptions{})
+	if err != nil {
+		log.Errorf("Error fetching key/values: %s", err)
+	} else {
+		for _, pair := range pairs {
+			if e.kvFilter.MatchString(pair.Key) {
+				val, err := strconv.ParseFloat(string(pair.Value), 64)
+				if err == nil {
+					e.keyValues.WithLabelValues(pair.Key).Set(val)
+				}
+			}
+		}
+	}
+}
+
 func main() {
 	var (
 		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		consulServer  = flag.String("consul.server", "localhost:8500", "HTTP API address of a Consul server or agent.")
+		kvPrefix      = flag.String("kv.prefix", "none", "Prefix from which to expose key/value pairs")
+		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose")
 	)
 	flag.Parse()
 
-	exporter := NewExporter(*consulServer)
+	exporter := NewExporter(*consulServer, *kvPrefix, *kvFilter)
 	prometheus.MustRegister(exporter)
 
 	log.Infof("Starting Server: %s", *listenAddress)
