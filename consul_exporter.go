@@ -250,8 +250,8 @@ func main() {
 		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		consulServer  = flag.String("consul.server", "localhost:8500", "HTTP API address of a Consul server or agent.")
-		kvPrefix      = flag.String("kv.prefix", "none", "Prefix from which to expose key/value pairs")
-		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose")
+		kvPrefix      = flag.String("kv.prefix", "none", "Prefix from which to expose key/value pairs.")
+		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
 	)
 	flag.Parse()
 
