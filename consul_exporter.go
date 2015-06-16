@@ -76,7 +76,7 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "catalog_service_nodes",
-				Help:      "Number of nodes currently registered for this service",
+				Help:      "Number of nodes currently registered for this service.",
 			},
 			[]string{"service"},
 		),
@@ -94,7 +94,7 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			prometheus.GaugeOpts{
 				Namespace: namespace,
 				Name:      "catalog_kv",
-				Help:      "key/value",
+				Help:      "The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted.",
 			},
 			[]string{"key"},
 		),
