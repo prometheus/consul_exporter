@@ -233,13 +233,14 @@ func (e *Exporter) setKeyValues() {
 	pairs, _, err := kv.List(e.kvPrefix, &consul_api.QueryOptions{})
 	if err != nil {
 		log.Errorf("Error fetching key/values: %s", err)
-	} else {
-		for _, pair := range pairs {
-			if e.kvFilter.MatchString(pair.Key) {
-				val, err := strconv.ParseFloat(string(pair.Value), 64)
-				if err == nil {
-					e.keyValues.WithLabelValues(pair.Key).Set(val)
-				}
+		return
+	}
+
+	for _, pair := range pairs {
+		if e.kvFilter.MatchString(pair.Key) {
+			val, err := strconv.ParseFloat(string(pair.Value), 64)
+			if err == nil {
+				e.keyValues.WithLabelValues(pair.Key).Set(val)
 			}
 		}
 	}
