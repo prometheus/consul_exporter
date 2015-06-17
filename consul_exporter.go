@@ -34,8 +34,8 @@ type Exporter struct {
 	nodeCount, serviceCount                           prometheus.Counter
 	serviceNodesTotal, serviceNodesHealthy, keyValues *prometheus.GaugeVec
 	client                                            *consul_api.Client
-	kvPrefix					  string
-	kvFilter					  *regexp.Regexp
+	kvPrefix                                          string
+	kvFilter                                          *regexp.Regexp
 }
 
 // NewExporter returns an initialized Exporter.
@@ -99,7 +99,7 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			[]string{"key"},
 		),
 
-		client: consul_client,
+		client:   consul_client,
 		kvPrefix: kvPrefix,
 		kvFilter: regexp.MustCompile(kvFilter),
 	}
@@ -228,6 +228,10 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry) {
 }
 
 func (e *Exporter) setKeyValues() {
+	if e.kvPrefix == "" {
+		return
+	}
+
 	kv := e.client.KV()
 
 	pairs, _, err := kv.List(e.kvPrefix, &consul_api.QueryOptions{})
@@ -251,7 +255,7 @@ func main() {
 		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		consulServer  = flag.String("consul.server", "localhost:8500", "HTTP API address of a Consul server or agent.")
-		kvPrefix      = flag.String("kv.prefix", "none", "Prefix from which to expose key/value pairs.")
+		kvPrefix      = flag.String("kv.prefix", "", "Prefix from which to expose key/value pairs.")
 		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
 	)
 	flag.Parse()
