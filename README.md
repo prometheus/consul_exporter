@@ -20,6 +20,20 @@ make
     the address of a Consul server.
 * __`web.listen-address`:__ Address to listen on for web interface and telemetry.
 * __`web.telemetry-path`:__ Path under which to expose metrics.
+* __`log.level`:__ Logging level. `info` by default.
+
+#### Key/Value Checks
+
+This exporter supports grabbing key/value pairs from Consul's KV store and
+exposing them to Prometheus. This can be useful, for instance, if you use
+Consul KV to store your intended cluster size, and want to graph that value
+against the actual value found via monitoring.
+
+* __`kv.prefix`:__ Prefix under which to look for KV pairs.
+* __`kv.filter`:__ Only store keys that match this regex pattern.
+
+A prefix must be supplied to activate this feature. Pass `/` if you want to
+search the entire keyspace.
 
 ## Useful Queries
 
