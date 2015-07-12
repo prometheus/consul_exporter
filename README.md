@@ -46,3 +46,22 @@ Values of 1 mean that all nodes for the service are passing. Values of 0 mean at
 __What service nodes are failing?__
 
     sum by (node, service)(consul_catalog_service_node_healthy == 0)
+
+## Using Docker
+
+You can deploy this exporter using the [prom/consul-exporter](https://registry.hub.docker.com/u/prom/consul-exporter/) Docker image.
+
+For example:
+
+```bash
+docker pull prom/consul-exporter
+
+docker run -d -p 9107:9107 prom/consul-exporter -consul.server=172.17.42.1:8500
+```
+
+Keep in mind that your container needs to be able to communicate with the Consul server or agent. Use an IP accessible from the container or set the `--dns` and `--dns-search` options of the `docker run` command:
+
+```bash
+docker run -d -p 9107:9107 --dns=172.17.42.1 --dns-search=service.consul \
+        prom/consul-exporter -consul.server=consul:8500
+```
