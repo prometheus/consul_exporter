@@ -30,12 +30,12 @@ type Exporter struct {
 	URI   string
 	mutex sync.RWMutex
 
-	up, clusterServers                                            prometheus.Gauge
-	nodeCount                                                     prometheus.Counter
-	serviceNodesTotal, serviceNodesHealthy, nodeChecks, keyValues *prometheus.GaugeVec
-	client                                                        *consul_api.Client
-	kvPrefix                                                      string
-	kvFilter                                                      *regexp.Regexp
+	up, clusterServers                         prometheus.Gauge
+	nodeCount                                  prometheus.Counter
+	serviceNodesHealthy, nodeChecks, keyValues *prometheus.GaugeVec
+	client                                     *consul_api.Client
+	kvPrefix                                   string
+	kvFilter                                   *regexp.Regexp
 }
 
 // NewExporter returns an initialized Exporter.
@@ -65,15 +65,6 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			Name:      "serf_lan_members",
 			Help:      "How many members are in the cluster.",
 		}),
-
-		serviceNodesTotal: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "catalog_service_nodes",
-				Help:      "Number of nodes currently registered for this service.",
-			},
-			[]string{"service"},
-		),
 
 		serviceNodesHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -115,7 +106,6 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.nodeCount.Desc()
 	ch <- e.clusterServers.Desc()
 
-	e.serviceNodesTotal.Describe(ch)
 	e.serviceNodesHealthy.Describe(ch)
 	e.keyValues.Describe(ch)
 }
@@ -132,7 +122,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	defer e.mutex.Unlock()
 
 	// Reset metrics.
-	e.serviceNodesTotal.Reset()
 	e.serviceNodesHealthy.Reset()
 	e.nodeChecks.Reset()
 
@@ -142,7 +131,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.clusterServers
 	ch <- e.nodeCount
 
-	e.serviceNodesTotal.Collect(ch)
 	e.serviceNodesHealthy.Collect(ch)
 	e.nodeChecks.Collect(ch)
 
@@ -213,16 +201,11 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry, checks
 				continue
 			}
 
-			// We should have one ServiceEntry per node, so use that for total nodes.
-			e.serviceNodesTotal.WithLabelValues(service[0].Service.Service).Set(float64(len(service)))
-
 			for _, entry := range service {
 				// We have a Node, a Service, and one or more Checks. Our
 				// service-node combo is passing if all checks have a `status`
 				// of "passing."
-
 				passing := 1
-
 				for _, hc := range entry.Checks {
 					if hc.Status != consul.HealthPassing {
 						passing = 0
@@ -230,9 +213,8 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry, checks
 					}
 				}
 
-				log.Infof("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
-
 				e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node).Set(float64(passing))
+				log.Infof("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
 			}
 		case entry, b := <-checks:
 			running = b
