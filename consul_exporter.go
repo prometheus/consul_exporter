@@ -30,12 +30,12 @@ type Exporter struct {
 	URI   string
 	mutex sync.RWMutex
 
-	up, clusterServers                                 prometheus.Gauge
-	nodeCount, serviceCount                            prometheus.Counter
-	serviceNodesTotal, serviceNodesHealthy, nodeChecks, keyValues *prometheus.GaugeVec
-	client                                             *consul_api.Client
-	kvPrefix                                          string
-	kvFilter                                          *regexp.Regexp
+	up, clusterServers                         prometheus.Gauge
+	nodeCount                                  prometheus.Counter
+	serviceNodesHealthy, nodeChecks, keyValues *prometheus.GaugeVec
+	client                                     *consul_api.Client
+	kvPrefix                                   string
+	kvFilter                                   *regexp.Regexp
 }
 
 // NewExporter returns an initialized Exporter.
@@ -65,21 +65,6 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			Name:      "serf_lan_members",
 			Help:      "How many members are in the cluster.",
 		}),
-
-		serviceCount: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "catalog_services",
-			Help:      "How many services are in the cluster.",
-		}),
-
-		serviceNodesTotal: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "catalog_service_nodes",
-				Help:      "Number of nodes currently registered for this service.",
-			},
-			[]string{"service"},
-		),
 
 		serviceNodesHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -119,10 +104,8 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.up.Desc()
 	ch <- e.nodeCount.Desc()
-	ch <- e.serviceCount.Desc()
 	ch <- e.clusterServers.Desc()
 
-	e.serviceNodesTotal.Describe(ch)
 	e.serviceNodesHealthy.Describe(ch)
 	e.keyValues.Describe(ch)
 }
@@ -139,7 +122,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	defer e.mutex.Unlock()
 
 	// Reset metrics.
-	e.serviceNodesTotal.Reset()
 	e.serviceNodesHealthy.Reset()
 	e.nodeChecks.Reset()
 
@@ -148,9 +130,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- e.up
 	ch <- e.clusterServers
 	ch <- e.nodeCount
-	ch <- e.serviceCount
 
-	e.serviceNodesTotal.Collect(ch)
 	e.serviceNodesHealthy.Collect(ch)
 	e.nodeChecks.Collect(ch)
 
@@ -160,13 +140,11 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry, checks chan<- []*consul_api.HealthCheck) {
-
 	defer close(services)
 	defer close(checks)
 
 	// How many peers are in the Consul cluster?
 	peers, err := e.client.Status().Peers()
-
 	if err != nil {
 		e.up.Set(0)
 		log.Errorf("Query error is %v", err)
@@ -179,7 +157,6 @@ func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry, check
 
 	// How many nodes are registered?
 	nodes, _, err := e.client.Catalog().Nodes(&consul_api.QueryOptions{})
-
 	if err != nil {
 		// FIXME: How should we handle a partial failure like this?
 	} else {
@@ -188,18 +165,13 @@ func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry, check
 
 	// Query for the full list of services.
 	serviceNames, _, err := e.client.Catalog().Services(&consul_api.QueryOptions{})
-	e.serviceCount.Set(float64(len(serviceNames)))
-
 	if err != nil {
 		// FIXME: How should we handle a partial failure like this?
 		return
 	}
 
-	e.serviceCount.Set(float64(len(serviceNames)))
-
 	for s := range serviceNames {
 		s_entries, _, err := e.client.Health().Service(s, "", false, &consul_api.QueryOptions{})
-
 		if err != nil {
 			log.Errorf("Failed to query service health: %v", err)
 			continue
@@ -211,11 +183,9 @@ func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry, check
 	c_entries, _, err := e.client.Health().State("any", &consul_api.QueryOptions{})
 	if err != nil {
 		log.Errorf("Failed to query service health: %v", err)
-
 	} else {
 		checks <- c_entries
 	}
-
 }
 
 func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry, checks <-chan []*consul_api.HealthCheck) {
@@ -231,16 +201,11 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry, checks
 				continue
 			}
 
-			// We should have one ServiceEntry per node, so use that for total nodes.
-			e.serviceNodesTotal.WithLabelValues(service[0].Service.Service).Set(float64(len(service)))
-
 			for _, entry := range service {
 				// We have a Node, a Service, and one or more Checks. Our
 				// service-node combo is passing if all checks have a `status`
 				// of "passing."
-
 				passing := 1
-
 				for _, hc := range entry.Checks {
 					if hc.Status != consul.HealthPassing {
 						passing = 0
@@ -248,9 +213,8 @@ func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry, checks
 					}
 				}
 
-				log.Infof("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
-
 				e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node).Set(float64(passing))
+				log.Infof("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
 			}
 		case entry, b := <-checks:
 			running = b
@@ -274,9 +238,7 @@ func (e *Exporter) setKeyValues() {
 		return
 	}
 
-	kv := e.client.KV()
-
-	pairs, _, err := kv.List(e.kvPrefix, &consul_api.QueryOptions{})
+	pairs, _, err := e.client.KV().List(e.kvPrefix, &consul_api.QueryOptions{})
 	if err != nil {
 		log.Errorf("Error fetching key/values: %s", err)
 		return
