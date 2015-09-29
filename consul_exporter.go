@@ -125,11 +125,6 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect fetches the stats from configured Consul location and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	services := make(chan []*consul_api.ServiceEntry)
-	checks := make(chan []*consul_api.HealthCheck)
-
-	go e.queryClient(services, checks)
-
 	e.Lock() // To protect metrics from concurrent collects.
 	defer e.Unlock()
 
@@ -138,7 +133,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.serviceNodesHealthy.Reset()
 	e.nodeChecks.Reset()
 
-	e.setMetrics(services, checks)
+	e.collect()
 
 	ch <- e.up
 	ch <- e.clusterServers
@@ -154,10 +149,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	e.keyValues.Collect(ch)
 }
 
-func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry, checks chan<- []*consul_api.HealthCheck) {
-	defer close(services)
-	defer close(checks)
-
+func (e *Exporter) collect() {
 	// How many peers are in the Consul cluster?
 	peers, err := e.client.Status().Peers()
 	if err != nil {
@@ -188,70 +180,52 @@ func (e *Exporter) queryClient(services chan<- []*consul_api.ServiceEntry, check
 	e.serviceCount.Set(float64(len(serviceNames)))
 
 	for s := range serviceNames {
-		sEntries, _, err := e.client.Health().Service(s, "", false, &consul_api.QueryOptions{})
+		service, _, err := e.client.Health().Service(s, "", false, &consul_api.QueryOptions{})
 		if err != nil {
 			log.Errorf("Failed to query service health: %v", err)
 			continue
 		}
-		services <- sEntries
-	}
 
-	cEntries, _, err := e.client.Health().State("any", &consul_api.QueryOptions{})
-	if err != nil {
-		log.Errorf("Failed to query service health: %v", err)
-	} else {
-		checks <- cEntries
-	}
-}
+		if len(service) == 0 {
+			// Not sure this should ever happen, but catch it just in case...
+			continue
+		}
 
-func (e *Exporter) setMetrics(services <-chan []*consul_api.ServiceEntry, checks <-chan []*consul_api.HealthCheck) {
-	// Each service will be an array of ServiceEntry structs.
-	running := true
-	for running {
-		select {
-		case service, b := <-services:
-			running = b
-			if len(service) == 0 {
-				// Not sure this should ever happen, but catch it just in case...
-				continue
-			}
+		// We should have one ServiceEntry per node, so use that for total nodes.
+		e.serviceNodesTotal.WithLabelValues(service[0].Service.Service).Set(float64(len(service)))
 
-			// We should have one ServiceEntry per node, so use that for total nodes.
-			e.serviceNodesTotal.WithLabelValues(service[0].Service.Service).Set(float64(len(service)))
-
-			for _, entry := range service {
-				// We have a Node, a Service, and one or more Checks. Our
-				// service-node combo is passing if all checks have a `status`
-				// of "passing."
-
-				passing := 1
-
-				for _, hc := range entry.Checks {
-					if hc.Status != consul.HealthPassing {
-						passing = 0
-						break
-					}
-				}
-
-				log.Infof("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
-
-				e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node).Set(float64(passing))
-			}
-		case entry, b := <-checks:
-			running = b
-			for _, hc := range entry {
-				passing := 1
-				if hc.ServiceID == "" {
-					if hc.Status != consul.HealthPassing {
-						passing = 0
-					}
-					e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(float64(passing))
-					log.Infof("CHECKS: %v/%v status is %d", hc.CheckID, hc.Node, passing)
+		for _, entry := range service {
+			// We have a Node, a Service, and one or more Checks. Our
+			// service-node combo is passing if all checks have a `status`
+			// of "passing."
+			passing := 1
+			for _, hc := range entry.Checks {
+				if hc.Status != consul.HealthPassing {
+					passing = 0
+					break
 				}
 			}
+			log.Infof("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
+			e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node).Set(float64(passing))
 		}
 	}
 
+	checks, _, err := e.client.Health().State("any", &consul_api.QueryOptions{})
+	if err != nil {
+		log.Errorf("Failed to query service health: %v", err)
+		return
+	}
+
+	for _, hc := range checks {
+		if hc.ServiceID == "" {
+			passing := 1
+			if hc.Status != consul.HealthPassing {
+				passing = 0
+			}
+			log.Infof("CHECKS: %v/%v status is %d", hc.CheckID, hc.Node, passing)
+			e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(float64(passing))
+		}
+	}
 }
 
 func (e *Exporter) setKeyValues() {
