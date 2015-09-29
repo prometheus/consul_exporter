@@ -31,10 +31,11 @@ type Exporter struct {
 	client                                                    *consul_api.Client
 	kvPrefix                                                  string
 	kvFilter                                                  *regexp.Regexp
+	healthSummary                                             bool
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
+func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) *Exporter {
 	// Set up our Consul client connection.
 	client, _ := consul_api.NewClient(&consul_api.Config{
 		Address: uri,
@@ -48,25 +49,21 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			Name:      "up",
 			Help:      "Was the last query of Consul successful.",
 		}),
-
 		clusterServers: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "raft_peers",
 			Help:      "How many peers (servers) are in the Raft cluster.",
 		}),
-
 		nodeCount: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "serf_lan_members",
 			Help:      "How many members are in the cluster.",
 		}),
-
 		serviceCount: prometheus.NewGauge(prometheus.GaugeOpts{
 			Namespace: namespace,
 			Name:      "catalog_services",
 			Help:      "How many services are in the cluster.",
 		}),
-
 		serviceNodesHealthy: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
@@ -75,7 +72,6 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			},
 			[]string{"service", "node"},
 		),
-
 		nodeChecks: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
@@ -84,7 +80,6 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			},
 			[]string{"check", "node"},
 		),
-
 		serviceChecks: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
@@ -93,7 +88,6 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			},
 			[]string{"check", "node", "service"},
 		),
-
 		keyValues: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
@@ -102,10 +96,10 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 			},
 			[]string{"key"},
 		),
-
-		client:   client,
-		kvPrefix: kvPrefix,
-		kvFilter: regexp.MustCompile(kvFilter),
+		client:        client,
+		kvPrefix:      kvPrefix,
+		kvFilter:      regexp.MustCompile(kvFilter),
+		healthSummary: healthSummary,
 	}
 }
 
@@ -175,9 +169,34 @@ func (e *Exporter) collect() {
 		// FIXME: How should we handle a partial failure like this?
 		return
 	}
-
 	e.serviceCount.Set(float64(len(serviceNames)))
 
+	if e.healthSummary {
+		e.collectHealthSummary(serviceNames)
+	}
+
+	checks, _, err := e.client.Health().State("any", &consul_api.QueryOptions{})
+	if err != nil {
+		log.Errorf("Failed to query service health: %v", err)
+		return
+	}
+
+	for _, hc := range checks {
+		var passing float64
+		if hc.Status == consul.HealthPassing {
+			passing = 1
+		}
+		if hc.ServiceID == "" {
+			e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(passing)
+		} else {
+			e.serviceChecks.WithLabelValues(hc.CheckID, hc.Node, hc.ServiceID).Set(passing)
+		}
+	}
+}
+
+// collectHealthSummary collects health information about every node+service
+// combination. It will cause one lookup query per service.
+func (e *Exporter) collectHealthSummary(serviceNames map[string][]string) {
 	for s := range serviceNames {
 		service, _, err := e.client.Health().Service(s, "", false, &consul_api.QueryOptions{})
 		if err != nil {
@@ -197,24 +216,6 @@ func (e *Exporter) collect() {
 				}
 			}
 			e.serviceNodesHealthy.WithLabelValues(entry.Service.ID, entry.Node.Node).Set(float64(passing))
-		}
-	}
-
-	checks, _, err := e.client.Health().State("any", &consul_api.QueryOptions{})
-	if err != nil {
-		log.Errorf("Failed to query service health: %v", err)
-		return
-	}
-
-	for _, hc := range checks {
-		var passing float64
-		if hc.Status == consul.HealthPassing {
-			passing = 1
-		}
-		if hc.ServiceID == "" {
-			e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(passing)
-		} else {
-			e.serviceChecks.WithLabelValues(hc.CheckID, hc.Node, hc.ServiceID).Set(passing)
 		}
 	}
 }
@@ -246,12 +247,13 @@ func main() {
 		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		consulServer  = flag.String("consul.server", "localhost:8500", "HTTP API address of a Consul server or agent.")
+		healthSummary = flag.Bool("consul.health-summary", true, "Generate a health summary for each service instance. Needs n+1 queries to collect all information.")
 		kvPrefix      = flag.String("kv.prefix", "", "Prefix from which to expose key/value pairs.")
 		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
 	)
 	flag.Parse()
 
-	exporter := NewExporter(*consulServer, *kvPrefix, *kvFilter)
+	exporter := NewExporter(*consulServer, *kvPrefix, *kvFilter, *healthSummary)
 	prometheus.MustRegister(exporter)
 
 	log.Infof("Starting Server: %s", *listenAddress)
