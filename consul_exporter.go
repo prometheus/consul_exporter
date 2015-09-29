@@ -185,7 +185,6 @@ func (e *Exporter) collect() {
 					break
 				}
 			}
-			log.Infof("%v/%v status is %v", entry.Service.Service, entry.Node.Node, passing)
 			e.serviceNodesHealthy.WithLabelValues(entry.Service.ID, entry.Node.Node).Set(float64(passing))
 		}
 	}
@@ -202,7 +201,6 @@ func (e *Exporter) collect() {
 			if hc.Status != consul.HealthPassing {
 				passing = 0
 			}
-			log.Infof("CHECKS: %v/%v status is %d", hc.CheckID, hc.Node, passing)
 			e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(float64(passing))
 		}
 	}
