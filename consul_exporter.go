@@ -25,12 +25,12 @@ type Exporter struct {
 	URI string
 	sync.RWMutex
 
-	up, clusterServers                         prometheus.Gauge
-	nodeCount, serviceCount                    prometheus.Counter
-	serviceNodesHealthy, nodeChecks, keyValues *prometheus.GaugeVec
-	client                                     *consul_api.Client
-	kvPrefix                                   string
-	kvFilter                                   *regexp.Regexp
+	up, clusterServers                                        prometheus.Gauge
+	nodeCount, serviceCount                                   prometheus.Counter
+	serviceNodesHealthy, nodeChecks, serviceChecks, keyValues *prometheus.GaugeVec
+	client                                                    *consul_api.Client
+	kvPrefix                                                  string
+	kvFilter                                                  *regexp.Regexp
 }
 
 // NewExporter returns an initialized Exporter.
@@ -79,10 +79,19 @@ func NewExporter(uri string, kvPrefix string, kvFilter string) *Exporter {
 		nodeChecks: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "agent_check",
-				Help:      "Is this check passing on this node?",
+				Name:      "health_node_status",
+				Help:      "Status of health checks associated with a node.",
 			},
 			[]string{"check", "node"},
+		),
+
+		serviceChecks: prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "health_service_status",
+				Help:      "Status of health checks associated with a service.",
+			},
+			[]string{"check", "node", "service"},
 		),
 
 		keyValues: prometheus.NewGaugeVec(
@@ -121,6 +130,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// Reset metrics.
 	e.serviceNodesHealthy.Reset()
 	e.nodeChecks.Reset()
+	e.serviceChecks.Reset()
 
 	e.collect()
 
@@ -131,6 +141,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	e.serviceNodesHealthy.Collect(ch)
 	e.nodeChecks.Collect(ch)
+	e.serviceChecks.Collect(ch)
 
 	e.keyValues.Reset()
 	e.setKeyValues()
@@ -196,12 +207,14 @@ func (e *Exporter) collect() {
 	}
 
 	for _, hc := range checks {
+		var passing float64
+		if hc.Status == consul.HealthPassing {
+			passing = 1
+		}
 		if hc.ServiceID == "" {
-			passing := 1
-			if hc.Status != consul.HealthPassing {
-				passing = 0
-			}
-			e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(float64(passing))
+			e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(passing)
+		} else {
+			e.serviceChecks.WithLabelValues(hc.CheckID, hc.Node, hc.ServiceID).Set(passing)
 		}
 	}
 }
