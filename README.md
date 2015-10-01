@@ -18,6 +18,11 @@ make
 * __`consul.server`:__ Address (host and port) of the Consul instance we should
     connect to. This could be a local agent (`localhost:8500`, for instance), or
     the address of a Consul server.
+* __`consul.health-summary`:__ Collects information about each registered
+  service and exports `consul_catalog_service_node_healthy`. This requires n+1
+  Consul API queries to gather all information about each service. Health check
+  information are available via `consul_health_service_status` as well, but
+  only for services which have a health check configured. Defaults to true.
 * __`web.listen-address`:__ Address to listen on for web interface and telemetry.
 * __`web.telemetry-path`:__ Path under which to expose metrics.
 * __`log.level`:__ Logging level. `info` by default.
