@@ -13,7 +13,7 @@ The following individuals have contributed code to this repository
 * David Birdsong <david.birdsong@gmail.com>
 * Eric Richardson <e@ericrichardson.com>
 * Johannes 'fish' Ziemke <github@freigeist.org>
-* Julius Volz <julius@soundcloud.com>
+* Julius Volz <julius.volz@gmail.com>
 * Nevins Bartolomeo <nevins.bartolomeo@aocsolutions.com>
 * Steve Durrheimer <s.durrheimer@gmail.com>
 * Tobias Schmidt <tobidt@gmail.com>
