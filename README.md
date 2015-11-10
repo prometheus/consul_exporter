@@ -20,6 +20,7 @@ make
 | consul_catalog_service_node_healthy | Is this service healthy on this node | service, node |
 | consul_health_node_status | Status of health checks associated with a node | check, node |
 | consul_health_service_status | Status of health checks associated with a service | check, node, service |
+| consul_catalog_kv | The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted | key |
 
 ### Flags
 
