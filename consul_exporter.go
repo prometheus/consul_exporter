@@ -215,7 +215,7 @@ func (e *Exporter) collectHealthSummary(serviceNames map[string][]string) {
 					break
 				}
 			}
-			e.serviceNodesHealthy.WithLabelValues(entry.Service.ID, entry.Node.Node).Set(float64(passing))
+			e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node+":"+entry.Port.Port).Set(float64(passing))
 		}
 	}
 }
