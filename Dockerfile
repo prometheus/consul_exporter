@@ -1,4 +1,5 @@
-FROM        sdurrheimer/alpine-golang-make-onbuild
-MAINTAINER  The Prometheus Authors <prometheus-developers@googlegroups.com>
+FROM golang:1.4.2-onbuild
+LABEL container.name="wehkamp/prometheus-consul-exporter:1.0.0"
 
-EXPOSE      9107
+ENTRYPOINT [ "go-wrapper", "run" ]
+EXPOSE 9107
