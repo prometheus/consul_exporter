@@ -3,11 +3,11 @@ package main
 import (
 	"flag"
 	"strconv"
+	"strings"
 
 	"net/http"
 	_ "net/http/pprof"
 	"regexp"
-	"strconv"
 	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -72,7 +72,7 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) *Exporter {
 				Name:      "catalog_service_node_healthy",
 				Help:      "Is this service healthy on this node?",
 			},
-			[]string{"service", "node", "port"},
+			[]string{"service", "node", "port", "team"},
 		),
 		nodeChecks: prometheus.NewGaugeVec(
 			prometheus.GaugeOpts{
@@ -217,7 +217,14 @@ func (e *Exporter) collectHealthSummary(serviceNames map[string][]string) {
 					break
 				}
 			}
-			e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node, strconv.Itoa(entry.Service.Port)).Set(float64(passing))
+
+			team := ""
+			for _, tag := range entry.Service.Tags {
+				if strings.HasPrefix(tag, "team") {
+					team = tag[5:]
+				}
+			}
+			e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node, strconv.Itoa(entry.Service.Port), team).Set(float64(passing))
 		}
 	}
 }
