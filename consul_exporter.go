@@ -6,7 +6,6 @@ import (
 	_ "net/http/pprof"
 	"regexp"
 	"strconv"
-	"sync"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/log"
@@ -19,19 +18,57 @@ const (
 	namespace = "consul"
 )
 
+var (
+	up = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "up"),
+		"Was the last query of Consul successful.",
+		nil, nil,
+	)
+	clusterServers = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_peers"),
+		"How many peers (servers) are in the Raft cluster.",
+		nil, nil,
+	)
+	nodeCount = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "serf_lan_members"),
+		"How many members are in the cluster.",
+		nil, nil,
+	)
+	serviceCount = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "catalog_services"),
+		"How many services are in the cluster.",
+		nil, nil,
+	)
+	serviceNodesHealthy = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "catalog_service_node_healthy"),
+		"Is this service healthy on this node?",
+		[]string{"service", "node"}, nil,
+	)
+	nodeChecks = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "health_node_status"),
+		"Status of health checks associated with a node.",
+		[]string{"check", "node"}, nil,
+	)
+	serviceChecks = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "health_service_status"),
+		"Status of health checks associated with a service.",
+		[]string{"check", "node", "service"}, nil,
+	)
+	keyValues = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "catalog_kv"),
+		"The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted.",
+		[]string{"key"}, nil,
+	)
+)
+
 // Exporter collects Consul stats from the given server and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	URI string
-	sync.RWMutex
-
-	up, clusterServers                                        prometheus.Gauge
-	nodeCount, serviceCount                                   prometheus.Counter
-	serviceNodesHealthy, nodeChecks, serviceChecks, keyValues *prometheus.GaugeVec
-	client                                                    *consul_api.Client
-	kvPrefix                                                  string
-	kvFilter                                                  *regexp.Regexp
-	healthSummary                                             bool
+	URI           string
+	client        *consul_api.Client
+	kvPrefix      string
+	kvFilter      *regexp.Regexp
+	healthSummary bool
 }
 
 // NewExporter returns an initialized Exporter.
@@ -43,59 +80,7 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) *Exporter {
 
 	// Init our exporter.
 	return &Exporter{
-		URI: uri,
-		up: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "up",
-			Help:      "Was the last query of Consul successful.",
-		}),
-		clusterServers: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "raft_peers",
-			Help:      "How many peers (servers) are in the Raft cluster.",
-		}),
-		nodeCount: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "serf_lan_members",
-			Help:      "How many members are in the cluster.",
-		}),
-		serviceCount: prometheus.NewGauge(prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "catalog_services",
-			Help:      "How many services are in the cluster.",
-		}),
-		serviceNodesHealthy: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "catalog_service_node_healthy",
-				Help:      "Is this service healthy on this node?",
-			},
-			[]string{"service", "node"},
-		),
-		nodeChecks: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "health_node_status",
-				Help:      "Status of health checks associated with a node.",
-			},
-			[]string{"check", "node"},
-		),
-		serviceChecks: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "health_service_status",
-				Help:      "Status of health checks associated with a service.",
-			},
-			[]string{"check", "node", "service"},
-		),
-		keyValues: prometheus.NewGaugeVec(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "catalog_kv",
-				Help:      "The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted.",
-			},
-			[]string{"key"},
-		),
+		URI:           uri,
 		client:        client,
 		kvPrefix:      kvPrefix,
 		kvFilter:      regexp.MustCompile(kvFilter),
@@ -106,61 +91,43 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) *Exporter {
 // Describe describes all the metrics ever exported by the Consul exporter. It
 // implements prometheus.Collector.
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
-	ch <- e.up.Desc()
-	ch <- e.nodeCount.Desc()
-	ch <- e.serviceCount.Desc()
-	ch <- e.clusterServers.Desc()
-
-	e.serviceNodesHealthy.Describe(ch)
-	e.keyValues.Describe(ch)
+	ch <- up
+	ch <- nodeCount
+	ch <- serviceCount
+	ch <- clusterServers
+	ch <- serviceNodesHealthy
+	ch <- keyValues
 }
 
 // Collect fetches the stats from configured Consul location and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	e.Lock() // To protect metrics from concurrent collects.
-	defer e.Unlock()
-
-	// Reset metrics.
-	e.serviceNodesHealthy.Reset()
-	e.nodeChecks.Reset()
-	e.serviceChecks.Reset()
-
-	e.collect()
-
-	ch <- e.up
-	ch <- e.clusterServers
-	ch <- e.nodeCount
-	ch <- e.serviceCount
-
-	e.serviceNodesHealthy.Collect(ch)
-	e.nodeChecks.Collect(ch)
-	e.serviceChecks.Collect(ch)
-
-	e.keyValues.Reset()
-	e.setKeyValues()
-	e.keyValues.Collect(ch)
-}
-
-func (e *Exporter) collect() {
 	// How many peers are in the Consul cluster?
 	peers, err := e.client.Status().Peers()
 	if err != nil {
-		e.up.Set(0)
+		ch <- prometheus.MustNewConstMetric(
+			up, prometheus.GaugeValue, 0,
+		)
 		log.Errorf("Query error is %v", err)
 		return
 	}
 
 	// We'll use peers to decide that we're up.
-	e.up.Set(1)
-	e.clusterServers.Set(float64(len(peers)))
+	ch <- prometheus.MustNewConstMetric(
+		up, prometheus.GaugeValue, 1,
+	)
+	ch <- prometheus.MustNewConstMetric(
+		clusterServers, prometheus.GaugeValue, float64(len(peers)),
+	)
 
 	// How many nodes are registered?
 	nodes, _, err := e.client.Catalog().Nodes(&consul_api.QueryOptions{})
 	if err != nil {
 		// FIXME: How should we handle a partial failure like this?
 	} else {
-		e.nodeCount.Set(float64(len(nodes)))
+		ch <- prometheus.MustNewConstMetric(
+			nodeCount, prometheus.GaugeValue, float64(len(nodes)),
+		)
 	}
 
 	// Query for the full list of services.
@@ -169,10 +136,12 @@ func (e *Exporter) collect() {
 		// FIXME: How should we handle a partial failure like this?
 		return
 	}
-	e.serviceCount.Set(float64(len(serviceNames)))
+	ch <- prometheus.MustNewConstMetric(
+		serviceCount, prometheus.GaugeValue, float64(len(serviceNames)),
+	)
 
 	if e.healthSummary {
-		e.collectHealthSummary(serviceNames)
+		e.collectHealthSummary(ch, serviceNames)
 	}
 
 	checks, _, err := e.client.Health().State("any", &consul_api.QueryOptions{})
@@ -187,16 +156,22 @@ func (e *Exporter) collect() {
 			passing = 1
 		}
 		if hc.ServiceID == "" {
-			e.nodeChecks.WithLabelValues(hc.CheckID, hc.Node).Set(passing)
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node,
+			)
 		} else {
-			e.serviceChecks.WithLabelValues(hc.CheckID, hc.Node, hc.ServiceID).Set(passing)
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID,
+			)
 		}
 	}
+
+	e.collectKeyValues(ch)
 }
 
 // collectHealthSummary collects health information about every node+service
 // combination. It will cause one lookup query per service.
-func (e *Exporter) collectHealthSummary(serviceNames map[string][]string) {
+func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceNames map[string][]string) {
 	for s := range serviceNames {
 		service, _, err := e.client.Health().Service(s, "", false, &consul_api.QueryOptions{})
 		if err != nil {
@@ -208,19 +183,21 @@ func (e *Exporter) collectHealthSummary(serviceNames map[string][]string) {
 			// We have a Node, a Service, and one or more Checks. Our
 			// service-node combo is passing if all checks have a `status`
 			// of "passing."
-			passing := 1
+			passing := 1.
 			for _, hc := range entry.Checks {
 				if hc.Status != consul.HealthPassing {
 					passing = 0
 					break
 				}
 			}
-			e.serviceNodesHealthy.WithLabelValues(entry.Service.ID, entry.Node.Node).Set(float64(passing))
+			ch <- prometheus.MustNewConstMetric(
+				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node,
+			)
 		}
 	}
 }
 
-func (e *Exporter) setKeyValues() {
+func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
 	if e.kvPrefix == "" {
 		return
 	}
@@ -236,7 +213,9 @@ func (e *Exporter) setKeyValues() {
 		if e.kvFilter.MatchString(pair.Key) {
 			val, err := strconv.ParseFloat(string(pair.Value), 64)
 			if err == nil {
-				e.keyValues.WithLabelValues(pair.Key).Set(val)
+				ch <- prometheus.MustNewConstMetric(
+					keyValues, prometheus.GaugeValue, val, pair.Key,
+				)
 			}
 		}
 	}
