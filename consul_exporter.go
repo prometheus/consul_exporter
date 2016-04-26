@@ -92,10 +92,12 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) *Exporter {
 // implements prometheus.Collector.
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
+	ch <- clusterServers
 	ch <- nodeCount
 	ch <- serviceCount
-	ch <- clusterServers
 	ch <- serviceNodesHealthy
+	ch <- nodeChecks
+	ch <- serviceChecks
 	ch <- keyValues
 }
 
