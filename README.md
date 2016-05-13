@@ -1,4 +1,8 @@
-# Consul Exporter
+# Consul Exporter [![Build Status](https://travis-ci.org/prometheus/consul_exporter.svg)][travis]
+
+[![CircleCI](https://circleci.com/gh/prometheus/consul_exporter/tree/master.svg?style=shield)][circleci]
+[![Docker Repository on Quay](https://quay.io/repository/prometheus/consul-exporter/status)][quay]
+[![Docker Pulls](https://img.shields.io/docker/pulls/prom/consul-exporter.svg?maxAge=604800)][hub]
 
 Export Consul service health to Prometheus.
 
@@ -74,12 +78,18 @@ For example:
 ```bash
 docker pull prom/consul-exporter
 
-docker run -d -p 9107:9107 prom/consul-exporter -consul.server=172.17.42.1:8500
+docker run -d -p 9107:9107 prom/consul-exporter -consul.server=172.17.0.1:8500
 ```
 
 Keep in mind that your container needs to be able to communicate with the Consul server or agent. Use an IP accessible from the container or set the `--dns` and `--dns-search` options of the `docker run` command:
 
 ```bash
-docker run -d -p 9107:9107 --dns=172.17.42.1 --dns-search=service.consul \
+docker run -d -p 9107:9107 --dns=172.17.0.1 --dns-search=service.consul \
         prom/consul-exporter -consul.server=consul:8500
 ```
+
+
+[circleci]: https://circleci.com/gh/prometheus/consul_exporter
+[hub]: https://hub.docker.com/r/prom/consul-exporter/
+[travis]: https://travis-ci.org/prometheus/consul_exporter
+[quay]: https://quay.io/repository/prometheus/consul-exporter

@@ -1,0 +1,9 @@
+go: 1.6.2
+repository:
+    path: github.com/prometheus/consul_exporter
+build:
+    flags: -a -tags netgo
+tarball:
+    files:
+        - LICENSE
+        - NOTICE
