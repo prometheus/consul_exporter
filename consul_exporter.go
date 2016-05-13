@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/log"
+	"github.com/prometheus/common/log"
 
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
@@ -237,7 +237,6 @@ func main() {
 	exporter := NewExporter(*consulServer, *kvPrefix, *kvFilter, *healthSummary)
 	prometheus.MustRegister(exporter)
 
-	log.Infof("Starting Server: %s", *listenAddress)
 	http.Handle(*metricsPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
@@ -248,5 +247,7 @@ func main() {
              </body>
              </html>`))
 	})
+
+	log.Infoln("Listening on", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
