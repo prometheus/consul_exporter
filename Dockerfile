@@ -1,4 +1,7 @@
-FROM        sdurrheimer/alpine-golang-make-onbuild
+FROM        quay.io/prometheus/busybox:latest
 MAINTAINER  The Prometheus Authors <prometheus-developers@googlegroups.com>
 
-EXPOSE      9107
+COPY consul_exporter /bin/consul_exporter
+
+EXPOSE     9107
+ENTRYPOINT [ "/bin/consul_exporter" ]

@@ -2,13 +2,16 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"regexp"
 	"strconv"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/log"
+	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/version"
 
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
@@ -223,8 +226,13 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
 	}
 }
 
+func init() {
+	prometheus.MustRegister(version.NewCollector("consul_exporter"))
+}
+
 func main() {
 	var (
+		showVersion   = flag.Bool("version", false, "Print version information.")
 		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
 		consulServer  = flag.String("consul.server", "localhost:8500", "HTTP API address of a Consul server or agent.")
@@ -234,10 +242,17 @@ func main() {
 	)
 	flag.Parse()
 
+	if *showVersion {
+		fmt.Fprintln(os.Stdout, version.Print("consul_exporter"))
+		os.Exit(0)
+	}
+
+	log.Infoln("Starting consul_exporter", version.Info())
+	log.Infoln("Build context", version.BuildContext())
+
 	exporter := NewExporter(*consulServer, *kvPrefix, *kvFilter, *healthSummary)
 	prometheus.MustRegister(exporter)
 
-	log.Infof("Starting Server: %s", *listenAddress)
 	http.Handle(*metricsPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
@@ -248,5 +263,7 @@ func main() {
              </body>
              </html>`))
 	})
+
+	log.Infoln("Listening on", *listenAddress)
 	log.Fatal(http.ListenAndServe(*listenAddress, nil))
 }
