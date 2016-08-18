@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
+	"net/url"
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
@@ -75,10 +77,23 @@ type Exporter struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) *Exporter {
+func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) (*Exporter, error) {
+	// parse uri to extract scheme
+	if !strings.Contains(uri, "://") {
+		uri = "http://" + uri
+	}
+	u, err := url.Parse(uri)
+	if err != nil {
+		return nil, fmt.Errorf("invalid consul URL: %s", err)
+	}
+	if u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+		return nil, fmt.Errorf("invalid consul URL: %s", uri)
+	}
+
 	// Set up our Consul client connection.
 	client, _ := consul_api.NewClient(&consul_api.Config{
-		Address: uri,
+		Address: u.Host,
+		Scheme:  u.Scheme,
 	})
 
 	// Init our exporter.
@@ -88,7 +103,7 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) *Exporter {
 		kvPrefix:      kvPrefix,
 		kvFilter:      regexp.MustCompile(kvFilter),
 		healthSummary: healthSummary,
-	}
+	}, nil
 }
 
 // Describe describes all the metrics ever exported by the Consul exporter. It
@@ -235,7 +250,7 @@ func main() {
 		showVersion   = flag.Bool("version", false, "Print version information.")
 		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		consulServer  = flag.String("consul.server", "localhost:8500", "HTTP API address of a Consul server or agent.")
+		consulServer  = flag.String("consul.server", "http://localhost:8500", "HTTP API address of a Consul server or agent. (prefix with https:// to connect over HTTPS)")
 		healthSummary = flag.Bool("consul.health-summary", true, "Generate a health summary for each service instance. Needs n+1 queries to collect all information.")
 		kvPrefix      = flag.String("kv.prefix", "", "Prefix from which to expose key/value pairs.")
 		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
@@ -250,7 +265,10 @@ func main() {
 	log.Infoln("Starting consul_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
 
-	exporter := NewExporter(*consulServer, *kvPrefix, *kvFilter, *healthSummary)
+	exporter, err := NewExporter(*consulServer, *kvPrefix, *kvFilter, *healthSummary)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	prometheus.MustRegister(exporter)
 
 	http.Handle(*metricsPath, prometheus.Handler())
