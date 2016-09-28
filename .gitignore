@@ -1,4 +1,5 @@
-.build
-consul_exporter
+/.build
+/.release
+/.tarballs
+/consul_exporter
 *.tar.gz
-*-stamp
