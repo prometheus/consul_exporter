@@ -34,6 +34,11 @@ var (
 		"How many peers (servers) are in the Raft cluster.",
 		nil, nil,
 	)
+	clusterLeader = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_leader"),
+		"Does Raft cluster have a leader (according to this node).",
+		nil, nil,
+	)
 	nodeCount = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_members"),
 		"How many members are in the cluster.",
@@ -111,6 +116,7 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) (*Exporter,
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
 	ch <- clusterServers
+	ch <- clusterLeader
 	ch <- nodeCount
 	ch <- serviceCount
 	ch <- serviceNodesHealthy
@@ -139,6 +145,20 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(
 		clusterServers, prometheus.GaugeValue, float64(len(peers)),
 	)
+
+	leader, err := e.client.Status().Leader()
+	if err != nil {
+		log.Errorf("Query error is %v", err)
+	}
+	if len(leader) == 0 {
+		ch <- prometheus.MustNewConstMetric(
+			clusterLeader, prometheus.GaugeValue, 0,
+		)
+	} else {
+		ch <- prometheus.MustNewConstMetric(
+			clusterLeader, prometheus.GaugeValue, 1,
+		)
+	}
 
 	// How many nodes are registered?
 	nodes, _, err := e.client.Catalog().Nodes(&consul_api.QueryOptions{})
