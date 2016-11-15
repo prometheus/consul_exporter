@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestNewExporter(t *testing.T) {
 	cases := []struct {
@@ -15,7 +18,7 @@ func TestNewExporter(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		_, err := NewExporter(test.uri, "", ".*", true)
+		_, err := NewExporter(test.uri, "", ".*", true, 100*time.Millisecond)
 		if test.ok && err != nil {
 			t.Errorf("expected no error w/ %s but got %s", test.uri, err)
 		}

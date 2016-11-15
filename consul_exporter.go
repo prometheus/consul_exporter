@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
@@ -17,6 +18,7 @@ import (
 
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
+	"github.com/hashicorp/go-cleanhttp"
 )
 
 const (
@@ -32,6 +34,11 @@ var (
 	clusterServers = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "raft_peers"),
 		"How many peers (servers) are in the Raft cluster.",
+		nil, nil,
+	)
+	clusterLeader = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_leader"),
+		"Does Raft cluster have a leader (according to this node).",
 		nil, nil,
 	)
 	nodeCount = prometheus.NewDesc(
@@ -77,7 +84,7 @@ type Exporter struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) (*Exporter, error) {
+func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool, consulTimeout time.Duration) (*Exporter, error) {
 	// parse uri to extract scheme
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
@@ -90,10 +97,16 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) (*Exporter,
 		return nil, fmt.Errorf("invalid consul URL: %s", uri)
 	}
 
+	// Use our own http client, with a nice low timeout, so scrapes
+	// don't timeout when talking to a broken consul.
+	httpClient := cleanhttp.DefaultPooledClient()
+	httpClient.Timeout = consulTimeout
+
 	// Set up our Consul client connection.
 	client, _ := consul_api.NewClient(&consul_api.Config{
-		Address: u.Host,
-		Scheme:  u.Scheme,
+		Address:    u.Host,
+		Scheme:     u.Scheme,
+		HttpClient: httpClient,
 	})
 
 	// Init our exporter.
@@ -111,6 +124,7 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool) (*Exporter,
 func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
 	ch <- clusterServers
+	ch <- clusterLeader
 	ch <- nodeCount
 	ch <- serviceCount
 	ch <- serviceNodesHealthy
@@ -139,6 +153,20 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ch <- prometheus.MustNewConstMetric(
 		clusterServers, prometheus.GaugeValue, float64(len(peers)),
 	)
+
+	leader, err := e.client.Status().Leader()
+	if err != nil {
+		log.Errorf("Query error is %v", err)
+	}
+	if len(leader) == 0 {
+		ch <- prometheus.MustNewConstMetric(
+			clusterLeader, prometheus.GaugeValue, 0,
+		)
+	} else {
+		ch <- prometheus.MustNewConstMetric(
+			clusterLeader, prometheus.GaugeValue, 1,
+		)
+	}
 
 	// How many nodes are registered?
 	nodes, _, err := e.client.Catalog().Nodes(&consul_api.QueryOptions{})
@@ -254,6 +282,7 @@ func main() {
 		healthSummary = flag.Bool("consul.health-summary", true, "Generate a health summary for each service instance. Needs n+1 queries to collect all information.")
 		kvPrefix      = flag.String("kv.prefix", "", "Prefix from which to expose key/value pairs.")
 		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
+		consulTimeout = flag.Duration("consul.timeout", 200*time.Millisecond, "Timeout on HTTP requests to consul")
 	)
 	flag.Parse()
 
@@ -265,7 +294,7 @@ func main() {
 	log.Infoln("Starting consul_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
 
-	exporter, err := NewExporter(*consulServer, *kvPrefix, *kvFilter, *healthSummary)
+	exporter, err := NewExporter(*consulServer, *kvPrefix, *kvFilter, *healthSummary, *consulTimeout)
 	if err != nil {
 		log.Fatalln(err)
 	}
