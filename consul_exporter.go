@@ -54,7 +54,7 @@ var (
 	serviceNodesHealthy = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_service_node_healthy"),
 		"Is this service healthy on this node?",
-		[]string{"service", "node", "service_name"}, nil,
+		[]string{"service_id", "node", "service_name"}, nil,
 	)
 	nodeChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_node_status"),
@@ -64,7 +64,7 @@ var (
 	serviceChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_service_status"),
 		"Status of health checks associated with a service.",
-		[]string{"check", "node", "service", "service_name"}, nil,
+		[]string{"check", "node", "service_id", "service_name"}, nil,
 	)
 	keyValues = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_kv"),
