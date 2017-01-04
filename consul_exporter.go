@@ -54,7 +54,7 @@ var (
 	serviceNodesHealthy = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_service_node_healthy"),
 		"Is this service healthy on this node?",
-		[]string{"service", "node"}, nil,
+		[]string{"service_id", "node", "service_name"}, nil,
 	)
 	nodeChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_node_status"),
@@ -64,7 +64,7 @@ var (
 	serviceChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_service_status"),
 		"Status of health checks associated with a service.",
-		[]string{"check", "node", "service"}, nil,
+		[]string{"check", "node", "service_id", "service_name"}, nil,
 	)
 	keyValues = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_kv"),
@@ -209,7 +209,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			)
 		} else {
 			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID,
+				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName,
 			)
 		}
 	}
@@ -239,7 +239,7 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 				}
 			}
 			ch <- prometheus.MustNewConstMetric(
-				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node,
+				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
 			)
 		}
 	}
