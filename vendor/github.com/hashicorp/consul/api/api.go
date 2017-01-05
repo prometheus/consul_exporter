@@ -20,6 +20,28 @@ import (
 	"github.com/hashicorp/go-cleanhttp"
 )
 
+const (
+	// HTTPAddrEnvName defines an environment variable name which sets
+	// the HTTP address if there is no -http-addr specified.
+	HTTPAddrEnvName = "CONSUL_HTTP_ADDR"
+
+	// HTTPTokenEnvName defines an environment variable name which sets
+	// the HTTP token.
+	HTTPTokenEnvName = "CONSUL_HTTP_TOKEN"
+
+	// HTTPAuthEnvName defines an environment variable name which sets
+	// the HTTP authentication header.
+	HTTPAuthEnvName = "CONSUL_HTTP_AUTH"
+
+	// HTTPSSLEnvName defines an environment variable name which sets
+	// whether or not to use HTTPS.
+	HTTPSSLEnvName = "CONSUL_HTTP_SSL"
+
+	// HTTPSSLVerifyEnvName defines an environment variable name which sets
+	// whether or not to disable certificate checking.
+	HTTPSSLVerifyEnvName = "CONSUL_HTTP_SSL_VERIFY"
+)
+
 // QueryOptions are used to parameterize a query
 type QueryOptions struct {
 	// Providing a datacenter overwrites the DC provided
@@ -80,6 +102,9 @@ type QueryMeta struct {
 
 	// How long did the request take
 	RequestTime time.Duration
+
+	// Is address translation enabled for HTTP responses on this agent
+	AddressTranslationEnabled bool
 }
 
 // WriteMeta is used to return meta data about a write
@@ -178,15 +203,15 @@ func defaultConfig(transportFn func() *http.Transport) *Config {
 		},
 	}
 
-	if addr := os.Getenv("CONSUL_HTTP_ADDR"); addr != "" {
+	if addr := os.Getenv(HTTPAddrEnvName); addr != "" {
 		config.Address = addr
 	}
 
-	if token := os.Getenv("CONSUL_HTTP_TOKEN"); token != "" {
+	if token := os.Getenv(HTTPTokenEnvName); token != "" {
 		config.Token = token
 	}
 
-	if auth := os.Getenv("CONSUL_HTTP_AUTH"); auth != "" {
+	if auth := os.Getenv(HTTPAuthEnvName); auth != "" {
 		var username, password string
 		if strings.Contains(auth, ":") {
 			split := strings.SplitN(auth, ":", 2)
@@ -202,10 +227,10 @@ func defaultConfig(transportFn func() *http.Transport) *Config {
 		}
 	}
 
-	if ssl := os.Getenv("CONSUL_HTTP_SSL"); ssl != "" {
+	if ssl := os.Getenv(HTTPSSLEnvName); ssl != "" {
 		enabled, err := strconv.ParseBool(ssl)
 		if err != nil {
-			log.Printf("[WARN] client: could not parse CONSUL_HTTP_SSL: %s", err)
+			log.Printf("[WARN] client: could not parse %s: %s", HTTPSSLEnvName, err)
 		}
 
 		if enabled {
@@ -213,10 +238,10 @@ func defaultConfig(transportFn func() *http.Transport) *Config {
 		}
 	}
 
-	if verify := os.Getenv("CONSUL_HTTP_SSL_VERIFY"); verify != "" {
+	if verify := os.Getenv(HTTPSSLVerifyEnvName); verify != "" {
 		doVerify, err := strconv.ParseBool(verify)
 		if err != nil {
-			log.Printf("[WARN] client: could not parse CONSUL_HTTP_SSL_VERIFY: %s", err)
+			log.Printf("[WARN] client: could not parse %s: %s", HTTPSSLVerifyEnvName, err)
 		}
 
 		if !doVerify {
@@ -330,6 +355,7 @@ type request struct {
 	url    *url.URL
 	params url.Values
 	body   io.Reader
+	header http.Header
 	obj    interface{}
 }
 
@@ -355,7 +381,7 @@ func (r *request) setQueryOptions(q *QueryOptions) {
 		r.params.Set("wait", durToMsec(q.WaitTime))
 	}
 	if q.Token != "" {
-		r.params.Set("token", q.Token)
+		r.header.Set("X-Consul-Token", q.Token)
 	}
 	if q.Near != "" {
 		r.params.Set("near", q.Near)
@@ -399,7 +425,7 @@ func (r *request) setWriteOptions(q *WriteOptions) {
 		r.params.Set("dc", q.Datacenter)
 	}
 	if q.Token != "" {
-		r.params.Set("token", q.Token)
+		r.header.Set("X-Consul-Token", q.Token)
 	}
 }
 
@@ -426,6 +452,7 @@ func (r *request) toHTTP() (*http.Request, error) {
 	req.URL.Host = r.url.Host
 	req.URL.Scheme = r.url.Scheme
 	req.Host = r.url.Host
+	req.Header = r.header
 
 	// Setup auth
 	if r.config.HttpAuth != nil {
@@ -446,6 +473,7 @@ func (c *Client) newRequest(method, path string) *request {
 			Path:   path,
 		},
 		params: make(map[string][]string),
+		header: make(http.Header),
 	}
 	if c.config.Datacenter != "" {
 		r.params.Set("dc", c.config.Datacenter)
@@ -454,7 +482,7 @@ func (c *Client) newRequest(method, path string) *request {
 		r.params.Set("wait", durToMsec(r.config.WaitTime))
 	}
 	if c.config.Token != "" {
-		r.params.Set("token", r.config.Token)
+		r.header.Set("X-Consul-Token", r.config.Token)
 	}
 	return r
 }
@@ -539,6 +567,15 @@ func parseQueryMeta(resp *http.Response, q *QueryMeta) error {
 	default:
 		q.KnownLeader = false
 	}
+
+	// Parse X-Consul-Translate-Addresses
+	switch header.Get("X-Consul-Translate-Addresses") {
+	case "true":
+		q.AddressTranslationEnabled = true
+	default:
+		q.AddressTranslationEnabled = false
+	}
+
 	return nil
 }
 
