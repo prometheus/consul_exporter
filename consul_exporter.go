@@ -18,7 +18,6 @@ import (
 
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
-	"github.com/hashicorp/go-cleanhttp"
 )
 
 const (
@@ -97,17 +96,15 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool, consulTimeo
 		return nil, fmt.Errorf("invalid consul URL: %s", uri)
 	}
 
-	// Use our own http client, with a nice low timeout, so scrapes
-	// don't timeout when talking to a broken consul.
-	httpClient := cleanhttp.DefaultPooledClient()
-	httpClient.Timeout = consulTimeout
+	config := consul_api.DefaultConfig()
+	config.Address = u.Host
+	config.Scheme = u.Scheme
+	config.HttpClient.Timeout = consulTimeout
 
-	// Set up our Consul client connection.
-	client, _ := consul_api.NewClient(&consul_api.Config{
-		Address:    u.Host,
-		Scheme:     u.Scheme,
-		HttpClient: httpClient,
-	})
+	client, err := consul_api.NewClient(config)
+	if err != nil {
+		return nil, err
+	}
 
 	// Init our exporter.
 	return &Exporter{
