@@ -57,7 +57,7 @@ against the actual value found via monitoring.
 A prefix must be supplied to activate this feature. Pass `/` if you want to
 search the entire keyspace.
 
-## Environment variables
+### Environment variables
 
 The consul\_exporter supports all environment variables provided by the official
 [consul/api package](https://github.com/hashicorp/consul/blob/c744792fc4d665363dba0ecfc7d05fdedc9cab32/api/api.go#L23-L43),
