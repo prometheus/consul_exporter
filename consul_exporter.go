@@ -83,11 +83,12 @@ type Exporter struct {
 }
 
 type consulOpts struct {
-	uri      string
-	caFile   string
-	certFile string
-	keyFile  string
-	timeout  time.Duration
+	uri        string
+	caFile     string
+	certFile   string
+	keyFile    string
+	serverName string
+	timeout    time.Duration
 }
 
 // NewExporter returns an initialized Exporter.
@@ -105,6 +106,7 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 	}
 
 	tlsConfig, err := consul_api.SetupTLSConfig(&consul_api.TLSConfig{
+		Address:  opts.serverName,
 		CAFile:   opts.caFile,
 		CertFile: opts.certFile,
 		KeyFile:  opts.keyFile,
@@ -304,6 +306,7 @@ func main() {
 	flag.StringVar(&opts.caFile, "consul.ca-file", "", "File path to a PEM-encoded certificate authority used to validate the authenticity of a server certificate.")
 	flag.StringVar(&opts.certFile, "consul.cert-file", "", "File path to a PEM-encoded certificate used with the private key to verify the exporter's authenticity.")
 	flag.StringVar(&opts.keyFile, "consul.key-file", "", "File path to a PEM-encoded private key used with the certificate to verify the exporter's authenticity.")
+	flag.StringVar(&opts.serverName, "consul.server-name", "", "When provided, this overrides the hostname for the TLS certificate. It can be used to ensure that the certificate name matches the hostname we declare.")
 	flag.DurationVar(&opts.timeout, "consul.timeout", 200*time.Millisecond, "Timeout on HTTP requests to consul.")
 
 	flag.Parse()
