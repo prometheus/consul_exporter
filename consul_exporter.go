@@ -18,6 +18,7 @@ import (
 
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
+	cleanhttp "github.com/hashicorp/go-cleanhttp"
 )
 
 const (
@@ -75,16 +76,23 @@ var (
 // Exporter collects Consul stats from the given server and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	URI           string
 	client        *consul_api.Client
 	kvPrefix      string
 	kvFilter      *regexp.Regexp
 	healthSummary bool
 }
 
+type consulOpts struct {
+	uri      string
+	caFile   string
+	certFile string
+	keyFile  string
+	timeout  time.Duration
+}
+
 // NewExporter returns an initialized Exporter.
-func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool, consulTimeout time.Duration) (*Exporter, error) {
-	// parse uri to extract scheme
+func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool) (*Exporter, error) {
+	uri := opts.uri
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
 	}
@@ -96,10 +104,22 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool, consulTimeo
 		return nil, fmt.Errorf("invalid consul URL: %s", uri)
 	}
 
+	tlsConfig, err := consul_api.SetupTLSConfig(&consul_api.TLSConfig{
+		CAFile:   opts.caFile,
+		CertFile: opts.certFile,
+		KeyFile:  opts.keyFile,
+	})
+	if err != nil {
+		return nil, err
+	}
+	transport := cleanhttp.DefaultPooledTransport()
+	transport.TLSClientConfig = tlsConfig
+
 	config := consul_api.DefaultConfig()
 	config.Address = u.Host
 	config.Scheme = u.Scheme
-	config.HttpClient.Timeout = consulTimeout
+	config.HttpClient.Timeout = opts.timeout
+	config.HttpClient.Transport = transport
 
 	client, err := consul_api.NewClient(config)
 	if err != nil {
@@ -108,7 +128,6 @@ func NewExporter(uri, kvPrefix, kvFilter string, healthSummary bool, consulTimeo
 
 	// Init our exporter.
 	return &Exporter{
-		URI:           uri,
 		client:        client,
 		kvPrefix:      kvPrefix,
 		kvFilter:      regexp.MustCompile(kvFilter),
@@ -139,7 +158,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(
 			up, prometheus.GaugeValue, 0,
 		)
-		log.Errorf("Query error is %v", err)
+		log.Errorf("Can't query consul: %v", err)
 		return
 	}
 
@@ -153,7 +172,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	leader, err := e.client.Status().Leader()
 	if err != nil {
-		log.Errorf("Query error is %v", err)
+		log.Errorf("Can't query consul: %v", err)
 	}
 	if len(leader) == 0 {
 		ch <- prometheus.MustNewConstMetric(
@@ -275,12 +294,18 @@ func main() {
 		showVersion   = flag.Bool("version", false, "Print version information.")
 		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
 		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		consulServer  = flag.String("consul.server", "http://localhost:8500", "HTTP API address of a Consul server or agent. (prefix with https:// to connect over HTTPS)")
 		healthSummary = flag.Bool("consul.health-summary", true, "Generate a health summary for each service instance. Needs n+1 queries to collect all information.")
 		kvPrefix      = flag.String("kv.prefix", "", "Prefix from which to expose key/value pairs.")
 		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
-		consulTimeout = flag.Duration("consul.timeout", 200*time.Millisecond, "Timeout on HTTP requests to consul")
+
+		opts = consulOpts{}
 	)
+	flag.StringVar(&opts.uri, "consul.server", "http://localhost:8500", "HTTP API address of a Consul server or agent. (prefix with https:// to connect over HTTPS)")
+	flag.StringVar(&opts.caFile, "consul.ca-file", "", "File path to a PEM-encoded certificate authority used to validate the authenticity of a server certificate.")
+	flag.StringVar(&opts.certFile, "consul.cert-file", "", "File path to a PEM-encoded certificate used with the private key to verify the exporter's authenticity.")
+	flag.StringVar(&opts.keyFile, "consul.key-file", "", "File path to a PEM-encoded private key used with the certificate to verify the exporter's authenticity.")
+	flag.DurationVar(&opts.timeout, "consul.timeout", 200*time.Millisecond, "Timeout on HTTP requests to consul.")
+
 	flag.Parse()
 
 	if *showVersion {
@@ -291,7 +316,7 @@ func main() {
 	log.Infoln("Starting consul_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
 
-	exporter, err := NewExporter(*consulServer, *kvPrefix, *kvFilter, *healthSummary, *consulTimeout)
+	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary)
 	if err != nil {
 		log.Fatalln(err)
 	}
