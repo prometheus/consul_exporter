@@ -54,17 +54,17 @@ var (
 	serviceNodesHealthy = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_service_node_healthy"),
 		"Is this service healthy on this node?",
-		[]string{"service_id", "node", "service_name"}, nil,
+		[]string{"service_id", "node", "service_name", "status", "tags"}, nil,
 	)
 	nodeChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_node_status"),
 		"Status of health checks associated with a node.",
-		[]string{"check", "node"}, nil,
+		[]string{"check", "node", "status"}, nil,
 	)
 	serviceChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_service_status"),
 		"Status of health checks associated with a service.",
-		[]string{"check", "node", "service_id", "service_name"}, nil,
+		[]string{"check", "node", "service_id", "service_name", "status"}, nil,
 	)
 	keyValues = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_kv"),
@@ -223,11 +223,11 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 		if hc.ServiceID == "" {
 			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node,
+				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.Status,
 			)
 		} else {
 			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName,
+				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, hc.Status,
 			)
 		}
 	}
@@ -246,6 +246,7 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 		}
 
 		for _, entry := range service {
+			aggregatedStatus := entry.Checks.AggregatedStatus()
 			// We have a Node, a Service, and one or more Checks. Our
 			// service-node combo is passing if all checks have a `status`
 			// of "passing."
@@ -257,7 +258,7 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 				}
 			}
 			ch <- prometheus.MustNewConstMetric(
-				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
+				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service, aggregatedStatus, strings.Join(entry.Service.Tags, ","),
 			)
 		}
 	}
