@@ -40,6 +40,7 @@ make
   Consul API queries to gather all information about each service. Health check
   information are available via `consul_health_service_status` as well, but
   only for services which have a health check configured. Defaults to true.
+* __`consul.health-status-code`:__  Returns a health status code for passing (0), warning (1) or critical (2) via `consul_health_service_status` and `consul_catalog_service_node_healthy`. Default health status code is passing (1) and critical/warning (0).
 * __`web.listen-address`:__ Address to listen on for web interface and telemetry.
 * __`web.telemetry-path`:__ Path under which to expose metrics.
 * __`log.level`:__ Logging level. `info` by default.
