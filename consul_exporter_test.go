@@ -15,7 +15,7 @@ func TestNewExporter(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		_, err := NewExporter(consulOpts{uri: test.uri}, "", ".*", true)
+		_, err := NewExporter(consulOpts{uri: test.uri}, "", ".*", true, false)
 		if test.ok && err != nil {
 			t.Errorf("expected no error w/ %q, but got %q", test.uri, err)
 		}

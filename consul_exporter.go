@@ -76,10 +76,11 @@ var (
 // Exporter collects Consul stats from the given server and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	client        *consul_api.Client
-	kvPrefix      string
-	kvFilter      *regexp.Regexp
-	healthSummary bool
+	client            *consul_api.Client
+	kvPrefix          string
+	kvFilter          *regexp.Regexp
+	healthSummary     bool
+	healthStatusCode  bool
 }
 
 type consulOpts struct {
@@ -92,7 +93,7 @@ type consulOpts struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool) (*Exporter, error) {
+func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool, healthStatusCode bool) (*Exporter, error) {
 	uri := opts.uri
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
@@ -134,6 +135,7 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 		kvPrefix:      kvPrefix,
 		kvFilter:      regexp.MustCompile(kvFilter),
 		healthSummary: healthSummary,
+		healthStatusCode: healthStatusCode,
 	}, nil
 }
 
@@ -217,17 +219,30 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, hc := range checks {
-		var passing float64
-		if hc.Status == consul.HealthPassing {
-			passing = 1
-		}
+		var status float64
+		if e.healthStatusCode {
+			switch hc.Status {
+			case consul.HealthWarning:
+				status = 1
+			case consul.HealthCritical:
+				status = 2
+			// status = 0 if not warning or critical
+			case consul.HealthPassing:
+			default:
+				status = 0
+			}
+		} else {
+			if hc.Status == consul.HealthPassing {
+				status = 1
+			}
+	    } 
 		if hc.ServiceID == "" {
 			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node,
+				nodeChecks, prometheus.GaugeValue, status, hc.CheckID, hc.Node,
 			)
 		} else {
 			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName,
+				serviceChecks, prometheus.GaugeValue, status, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName,
 			)
 		}
 	}
@@ -246,18 +261,30 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 		}
 
 		for _, entry := range service {
-			// We have a Node, a Service, and one or more Checks. Our
-			// service-node combo is passing if all checks have a `status`
-			// of "passing."
-			passing := 1.
-			for _, hc := range entry.Checks {
-				if hc.Status != consul.HealthPassing {
-					passing = 0
-					break
+			aggregatedStatus := entry.Checks.AggregatedStatus()
+			var status float64
+			if e.healthStatusCode {
+				switch aggregatedStatus {
+				case consul.HealthWarning:
+					status = 1
+				case consul.HealthCritical:
+					status = 2
+				// status = 0 if not warning or critical
+				case consul.HealthPassing:
+				default:
+					status = 0
 				}
-			}
+			} else {
+				// We have a Node, a Service, and one or more Checks. Our
+				// service-node combo is passing if all checks have a `status`
+				// of "passing."
+				if aggregatedStatus == consul.HealthPassing {
+					status = 1
+				}
+		    } 
+
 			ch <- prometheus.MustNewConstMetric(
-				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
+				serviceNodesHealthy, prometheus.GaugeValue, status, entry.Service.ID, entry.Node.Node, entry.Service.Service,
 			)
 		}
 	}
@@ -293,12 +320,13 @@ func init() {
 
 func main() {
 	var (
-		showVersion   = flag.Bool("version", false, "Print version information.")
-		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
-		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		healthSummary = flag.Bool("consul.health-summary", true, "Generate a health summary for each service instance. Needs n+1 queries to collect all information.")
-		kvPrefix      = flag.String("kv.prefix", "", "Prefix from which to expose key/value pairs.")
-		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
+		showVersion       = flag.Bool("version", false, "Print version information.")
+		listenAddress     = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
+		metricsPath       = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
+		healthSummary     = flag.Bool("consul.health-summary", true, "Generate a health summary for each service instance. Needs n+1 queries to collect all information.")
+		healthStatusCode  = flag.Bool("consul.health-status-code", false, "Returns a health status code for passing (0), warning (1) or critical (2). Default is passing (1) and critical/warning (0).")
+		kvPrefix          = flag.String("kv.prefix", "", "Prefix from which to expose key/value pairs.")
+		kvFilter          = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
 
 		opts = consulOpts{}
 	)
@@ -319,7 +347,7 @@ func main() {
 	log.Infoln("Starting consul_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
 
-	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary)
+	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary, *healthStatusCode)
 	if err != nil {
 		log.Fatalln(err)
 	}
