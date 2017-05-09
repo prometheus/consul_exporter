@@ -22,8 +22,8 @@ make
 | consul_serf_lan_members | How many members are in the cluster | |
 | consul_catalog_services | How many services are in the cluster | |
 | consul_catalog_service_node_healthy | Is this service healthy on this node | service, node |
-| consul_health_node_status | Status of health checks associated with a node | check, node |
-| consul_health_service_status | Status of health checks associated with a service | check, node, service |
+| consul_health_node_status | Status of health checks associated with a node | check, node, status |
+| consul_health_service_status | Status of health checks associated with a service | check, node, service, status |
 | consul_catalog_kv | The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted | key |
 
 ### Flags
@@ -74,6 +74,10 @@ Values of 1 mean that all nodes for the service are passing. Values of 0 mean at
 __What service nodes are failing?__
 
     sum by (node, service)(consul_catalog_service_node_healthy == 0)
+
+__What service checks are critical?__
+	
+	consul_health_service_status{status="critical"} == 1
 
 ## Using Docker
 
