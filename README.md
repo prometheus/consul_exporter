@@ -77,7 +77,9 @@ __What service nodes are failing?__
 
 __What service checks are critical?__
 	
-	consul_health_service_status{status="critical"} == 1
+    consul_health_service_status{status="critical"} == 1
+
+You can query for the following health check states: "maintenance", "critical", "warning" or "passing"
 
 ## Using Docker
 
