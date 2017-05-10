@@ -217,7 +217,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, hc := range checks {
-		var passing, warning, critical float64
+		var passing, warning, critical, maintenance float64
 
 		switch hc.Status {
 		case consul.HealthPassing:
@@ -226,6 +226,8 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			warning = 1
 		case consul.HealthCritical:
 			critical = 1
+		case consul.HealthMaint:
+			maintenance = 1
 		}
 
 		if hc.ServiceID == "" {
@@ -238,6 +240,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(
 				nodeChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, consul.HealthCritical,
 			)
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, consul.HealthMaint,
+			)
 		} else {
 			ch <- prometheus.MustNewConstMetric(
 				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthPassing,
@@ -247,6 +252,9 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			)
 			ch <- prometheus.MustNewConstMetric(
 				serviceChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthCritical,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthMaint,
 			)
 		}
 	}
