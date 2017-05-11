@@ -59,12 +59,12 @@ var (
 	nodeChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_node_status"),
 		"Status of health checks associated with a node.",
-		[]string{"check", "node"}, nil,
+		[]string{"check", "node", "status"}, nil,
 	)
 	serviceChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_service_status"),
 		"Status of health checks associated with a service.",
-		[]string{"check", "node", "service_id", "service_name"}, nil,
+		[]string{"check", "node", "service_id", "service_name", "status"}, nil,
 	)
 	keyValues = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_kv"),
@@ -217,17 +217,44 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	for _, hc := range checks {
-		var passing float64
-		if hc.Status == consul.HealthPassing {
+		var passing, warning, critical, maintenance float64
+
+		switch hc.Status {
+		case consul.HealthPassing:
 			passing = 1
+		case consul.HealthWarning:
+			warning = 1
+		case consul.HealthCritical:
+			critical = 1
+		case consul.HealthMaint:
+			maintenance = 1
 		}
+
 		if hc.ServiceID == "" {
 			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node,
+				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, consul.HealthPassing,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, consul.HealthWarning,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, consul.HealthCritical,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, consul.HealthMaint,
 			)
 		} else {
 			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName,
+				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthPassing,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthWarning,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthCritical,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthMaint,
 			)
 		}
 	}
