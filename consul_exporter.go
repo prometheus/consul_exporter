@@ -105,11 +105,15 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 		return nil, fmt.Errorf("invalid consul URL: %s", uri)
 	}
 
+	config := consul_api.DefaultConfig()
+	insecureSkipVerify := config.HttpClient.Transport.(*http.Transport).TLSClientConfig.InsecureSkipVerify
+
 	tlsConfig, err := consul_api.SetupTLSConfig(&consul_api.TLSConfig{
-		Address:  opts.serverName,
-		CAFile:   opts.caFile,
-		CertFile: opts.certFile,
-		KeyFile:  opts.keyFile,
+		Address:            opts.serverName,
+		CAFile:             opts.caFile,
+		CertFile:           opts.certFile,
+		KeyFile:            opts.keyFile,
+		InsecureSkipVerify: insecureSkipVerify,
 	})
 	if err != nil {
 		return nil, err
@@ -117,7 +121,6 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 	transport := cleanhttp.DefaultPooledTransport()
 	transport.TLSClientConfig = tlsConfig
 
-	config := consul_api.DefaultConfig()
 	config.Address = u.Host
 	config.Scheme = u.Scheme
 	config.HttpClient.Timeout = opts.timeout
