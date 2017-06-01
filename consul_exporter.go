@@ -283,6 +283,16 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 					break
 				}
 			}
+
+			/* TODO: useful?
+			team := ""
+			for _, tag := range entry.Service.Tags {
+				if strings.HasPrefix(tag, "team") {
+					team = tag[5:]
+				}
+			}
+			e.serviceNodesHealthy.WithLabelValues(entry.Service.Service, entry.Node.Node, strconv.Itoa(entry.Service.Port), team).Set(float64(passing))
+			*/
 			ch <- prometheus.MustNewConstMetric(
 				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
 			)
