@@ -1,3 +1,7 @@
+# This container is deprecated, it will be replaced by wehkamp/docker-prometheus-consul-exporter
+
+
+
 # Consul Exporter [![Build Status](https://travis-ci.org/prometheus/consul_exporter.svg)][travis]
 
 [![CircleCI](https://circleci.com/gh/prometheus/consul_exporter/tree/master.svg?style=shield)][circleci]
