@@ -47,6 +47,11 @@ var (
 		"How many members are in the cluster.",
 		nil, nil,
 	)
+	nodeMetaData = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "node_meta_data"),
+		"Tags of a service.",
+		[]string{"node", "key", "value"}, nil,
+	)
 	serviceCount = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_services"),
 		"How many services are in the cluster.",
@@ -202,6 +207,14 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(
 			nodeCount, prometheus.GaugeValue, float64(len(nodes)),
 		)
+	}
+
+	for _, node := range nodes {
+		for k, v := range node.Meta {
+			ch <- prometheus.MustNewConstMetric(
+				nodeMetaData, prometheus.GaugeValue, 1, node.Node, k, v,
+			)
+		}
 	}
 
 	// Query for the full list of services.
