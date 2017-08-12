@@ -1,12 +1,10 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,6 +13,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 	"github.com/prometheus/common/version"
+	"gopkg.in/alecthomas/kingpin.v2"
 
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
@@ -320,28 +319,25 @@ func init() {
 
 func main() {
 	var (
-		showVersion   = flag.Bool("version", false, "Print version information.")
-		listenAddress = flag.String("web.listen-address", ":9107", "Address to listen on for web interface and telemetry.")
-		metricsPath   = flag.String("web.telemetry-path", "/metrics", "Path under which to expose metrics.")
-		healthSummary = flag.Bool("consul.health-summary", true, "Generate a health summary for each service instance. Needs n+1 queries to collect all information.")
-		kvPrefix      = flag.String("kv.prefix", "", "Prefix from which to expose key/value pairs.")
-		kvFilter      = flag.String("kv.filter", ".*", "Regex that determines which keys to expose.")
+		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":9107").String()
+		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
+		healthSummary = kingpin.Flag("consul.health-summary", "Generate a health summary for each service instance. Needs n+1 queries to collect all information.").Default("true").Bool()
+		kvPrefix      = kingpin.Flag("kv.prefix", "Prefix from which to expose key/value pairs.").Default("").String()
+		kvFilter      = kingpin.Flag("kv.filter", "Regex that determines which keys to expose.").Default(".*").String()
 
 		opts = consulOpts{}
 	)
-	flag.StringVar(&opts.uri, "consul.server", "http://localhost:8500", "HTTP API address of a Consul server or agent. (prefix with https:// to connect over HTTPS)")
-	flag.StringVar(&opts.caFile, "consul.ca-file", "", "File path to a PEM-encoded certificate authority used to validate the authenticity of a server certificate.")
-	flag.StringVar(&opts.certFile, "consul.cert-file", "", "File path to a PEM-encoded certificate used with the private key to verify the exporter's authenticity.")
-	flag.StringVar(&opts.keyFile, "consul.key-file", "", "File path to a PEM-encoded private key used with the certificate to verify the exporter's authenticity.")
-	flag.StringVar(&opts.serverName, "consul.server-name", "", "When provided, this overrides the hostname for the TLS certificate. It can be used to ensure that the certificate name matches the hostname we declare.")
-	flag.DurationVar(&opts.timeout, "consul.timeout", 200*time.Millisecond, "Timeout on HTTP requests to consul.")
+	kingpin.Flag("consul.server", "HTTP API address of a Consul server or agent. (prefix with https:// to connect over HTTPS)").Default("http://localhost:8500").StringVar(&opts.uri)
+	kingpin.Flag("consul.ca-file", "File path to a PEM-encoded certificate authority used to validate the authenticity of a server certificate.").Default("").StringVar(&opts.caFile)
+	kingpin.Flag("consul.cert-file", "File path to a PEM-encoded certificate used with the private key to verify the exporter's authenticity.").Default("").StringVar(&opts.certFile)
+	kingpin.Flag("consul.key-file", "File path to a PEM-encoded private key used with the certificate to verify the exporter's authenticity.").Default("").StringVar(&opts.keyFile)
+	kingpin.Flag("consul.server-name", "When provided, this overrides the hostname for the TLS certificate. It can be used to ensure that the certificate name matches the hostname we declare.").Default("").StringVar(&opts.serverName)
+	kingpin.Flag("consul.timeout", "Timeout on HTTP requests to consul.").Default("200ms").DurationVar(&opts.timeout)
 
-	flag.Parse()
-
-	if *showVersion {
-		fmt.Fprintln(os.Stdout, version.Print("consul_exporter"))
-		os.Exit(0)
-	}
+	log.AddFlags(kingpin.CommandLine)
+	kingpin.Version(version.Print("consul_exporter"))
+	kingpin.HelpFlag.Short('h')
+	kingpin.Parse()
 
 	log.Infoln("Starting consul_exporter", version.Info())
 	log.Infoln("Build context", version.BuildContext())
