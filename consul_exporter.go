@@ -50,6 +50,11 @@ var (
 		"How many services are in the cluster.",
 		nil, nil,
 	)
+	serviceTag = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "service_tag"),
+		"Tags of a service.",
+		[]string{"service_id", "node", "service_tag"}, nil,
+	)
 	serviceNodesHealthy = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_service_node_healthy"),
 		"Is this service healthy on this node?",
@@ -148,6 +153,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- nodeChecks
 	ch <- serviceChecks
 	ch <- keyValues
+	ch <- serviceTag
 }
 
 // Collect fetches the stats from configured Consul location and delivers them
@@ -285,6 +291,9 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 			ch <- prometheus.MustNewConstMetric(
 				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
 			)
+			for _, tag := range entry.Service.Tags {
+				ch <- prometheus.MustNewConstMetric(serviceTag, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, tag)
+			}
 		}
 	}
 }
