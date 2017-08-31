@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -264,29 +265,44 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 // collectHealthSummary collects health information about every node+service
 // combination. It will cause one lookup query per service.
 func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceNames map[string][]string) {
-	for s := range serviceNames {
-		service, _, err := e.client.Health().Service(s, "", false, &consul_api.QueryOptions{})
-		if err != nil {
-			log.Errorf("Failed to query service health: %v", err)
-			continue
-		}
+	var wg sync.WaitGroup
 
-		for _, entry := range service {
-			// We have a Node, a Service, and one or more Checks. Our
-			// service-node combo is passing if all checks have a `status`
-			// of "passing."
-			passing := 1.
-			for _, hc := range entry.Checks {
-				if hc.Status != consul.HealthPassing {
-					passing = 0
-					break
-				}
-			}
-			ch <- prometheus.MustNewConstMetric(
-				serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
-			)
-		}
+	for s := range serviceNames {
+		wg.Add(1)
+		go func(s string) {
+			defer wg.Done()
+			e.collectOneHealthSummary(ch, s)
+		}(s)
 	}
+
+	wg.Wait()
+}
+
+func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) error {
+	log.Debugf("Fetching health summary for: %s", serviceName)
+
+	service, _, err := e.client.Health().Service(serviceName, "", false, &consul_api.QueryOptions{})
+	if err != nil {
+		log.Errorf("Failed to query service health: %v", err)
+		return err
+	}
+
+	for _, entry := range service {
+		// We have a Node, a Service, and one or more Checks. Our
+		// service-node combo is passing if all checks have a `status`
+		// of "passing."
+		passing := 1.
+		for _, hc := range entry.Checks {
+			if hc.Status != consul.HealthPassing {
+				passing = 0
+				break
+			}
+		}
+		ch <- prometheus.MustNewConstMetric(
+			serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
+		)
+	}
+	return nil
 }
 
 func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
