@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -71,6 +72,7 @@ var (
 		"The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted.",
 		[]string{"key"}, nil,
 	)
+	queryOptions = consul_api.QueryOptions{}
 )
 
 // Exporter collects Consul stats from the given server and exports them using
@@ -187,7 +189,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	// How many nodes are registered?
-	nodes, _, err := e.client.Catalog().Nodes(&consul_api.QueryOptions{})
+	nodes, _, err := e.client.Catalog().Nodes(&queryOptions)
 	if err != nil {
 		// FIXME: How should we handle a partial failure like this?
 	} else {
@@ -197,7 +199,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	}
 
 	// Query for the full list of services.
-	serviceNames, _, err := e.client.Catalog().Services(&consul_api.QueryOptions{})
+	serviceNames, _, err := e.client.Catalog().Services(&queryOptions)
 	if err != nil {
 		// FIXME: How should we handle a partial failure like this?
 		return
@@ -210,7 +212,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		e.collectHealthSummary(ch, serviceNames)
 	}
 
-	checks, _, err := e.client.Health().State("any", &consul_api.QueryOptions{})
+	checks, _, err := e.client.Health().State("any", &queryOptions)
 	if err != nil {
 		log.Errorf("Failed to query service health: %v", err)
 		return
@@ -281,7 +283,7 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) error {
 	log.Debugf("Fetching health summary for: %s", serviceName)
 
-	service, _, err := e.client.Health().Service(serviceName, "", false, &consul_api.QueryOptions{})
+	service, _, err := e.client.Health().Service(serviceName, "", false, &queryOptions)
 	if err != nil {
 		log.Errorf("Failed to query service health: %v", err)
 		return err
@@ -311,7 +313,7 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
 	}
 
 	kv := e.client.KV()
-	pairs, _, err := kv.List(e.kvPrefix, &consul_api.QueryOptions{})
+	pairs, _, err := kv.List(e.kvPrefix, &queryOptions)
 	if err != nil {
 		log.Errorf("Error fetching key/values: %s", err)
 		return
@@ -350,6 +352,10 @@ func main() {
 	kingpin.Flag("consul.server-name", "When provided, this overrides the hostname for the TLS certificate. It can be used to ensure that the certificate name matches the hostname we declare.").Default("").StringVar(&opts.serverName)
 	kingpin.Flag("consul.timeout", "Timeout on HTTP requests to consul.").Default("200ms").DurationVar(&opts.timeout)
 
+	// Query options.
+	kingpin.Flag("consul.allow_stale", "Allows any Consul server (non-leader) to service a read.").Default("true").BoolVar(&queryOptions.AllowStale)
+	kingpin.Flag("consul.require_consistent", "Forces the read to be fully consistent.").Default("false").BoolVar(&queryOptions.RequireConsistent)
+
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Version(version.Print("consul_exporter"))
 	kingpin.HelpFlag.Short('h')
@@ -364,6 +370,11 @@ func main() {
 	}
 	prometheus.MustRegister(exporter)
 
+	queryOptionsJson, err := json.Marshal(queryOptions)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	http.Handle(*metricsPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
@@ -371,6 +382,11 @@ func main() {
              <body>
              <h1>Consul Exporter</h1>
              <p><a href='` + *metricsPath + `'>Metrics</a></p>
+             <h2>Options</h2>
+             <pre>` + string(queryOptionsJson) + `</pre>
+             </dl>
+             <h2>Build</h2>
+             <pre>` + version.Info() + ` ` + version.BuildContext() + `</pre>
              </body>
              </html>`))
 	})
