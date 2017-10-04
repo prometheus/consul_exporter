@@ -49,7 +49,7 @@ var (
 	)
 	nodeMetaData = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "node_meta_data"),
-		"Tags of a service.",
+		"Node meta data",
 		[]string{"node", "key", "value"}, nil,
 	)
 	serviceCount = prometheus.NewDesc(
