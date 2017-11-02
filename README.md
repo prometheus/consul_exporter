@@ -67,13 +67,13 @@ including `CONSUL_HTTP_TOKEN` to set the [ACL](https://www.consul.io/docs/intern
 
 __Are my services healthy?__
 
-    min(consul_catalog_service_node_healthy) by (service)
+    min(consul_catalog_service_node_healthy) by (service_name)
 
 Values of 1 mean that all nodes for the service are passing. Values of 0 mean at least one node for the service is not passing.
 
 __What service nodes are failing?__
 
-    sum by (node, service)(consul_catalog_service_node_healthy == 0)
+    sum by (node, service_name)(consul_catalog_service_node_healthy == 0)
 
 __What service checks are critical?__
 	
