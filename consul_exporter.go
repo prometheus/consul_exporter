@@ -78,6 +78,7 @@ var (
 		[]string{"key"}, nil,
 	)
 	queryOptions = consul_api.QueryOptions{}
+	invalidChars = regexp.MustCompile("[^a-zA-Z0-9:_]")
 )
 
 // Exporter collects Consul stats from the given server and exports them using
@@ -267,6 +268,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
+	e.collectMetrics(ch)
 	e.collectKeyValues(ch)
 }
 
@@ -314,6 +316,41 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 		}
 	}
 	return nil
+}
+
+// collectMetrics collects metrics from the agent/metrics endpoint.
+func (e *Exporter) collectMetrics(ch chan<- prometheus.Metric) {
+	metrics, err := e.client.Agent().Metrics()
+	if err != nil {
+		// This endpoint was only added in 0.9.1, so silently ignore this failure.
+		return
+	}
+	for _, g := range metrics.Gauges {
+		name := invalidChars.ReplaceAllLiteralString(g.Name, "_")
+		desc := prometheus.NewDesc(name, "Consul metric "+g.Name, nil, nil)
+		ch <- prometheus.MustNewConstMetric(
+			desc, prometheus.GaugeValue, float64(g.Value))
+	}
+
+	for _, c := range metrics.Counters {
+		name := invalidChars.ReplaceAllLiteralString(c.Name, "_")
+		desc := prometheus.NewDesc(name+"_total", "Consul metric "+c.Name, nil, nil)
+		ch <- prometheus.MustNewConstMetric(
+			desc, prometheus.CounterValue, float64(c.Count))
+	}
+
+	for _, s := range metrics.Samples {
+		// All samples are times in milliseconds, we convert them to seconds below.
+		name := invalidChars.ReplaceAllLiteralString(s.Name, "_") + "_seconds"
+		countDesc := prometheus.NewDesc(
+			name+"_count", "Consul metric "+s.Name, nil, nil)
+		ch <- prometheus.MustNewConstMetric(
+			countDesc, prometheus.CounterValue, float64(s.Count))
+		sumDesc := prometheus.NewDesc(
+			name+"_sum", "Consul metric "+s.Name, nil, nil)
+		ch <- prometheus.MustNewConstMetric(
+			sumDesc, prometheus.CounterValue, s.Sum/1000)
+	}
 }
 
 func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
@@ -387,17 +424,17 @@ func main() {
 	http.Handle(*metricsPath, prometheus.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
-             <head><title>Consul Exporter</title></head>
-             <body>
-             <h1>Consul Exporter</h1>
-             <p><a href='` + *metricsPath + `'>Metrics</a></p>
-             <h2>Options</h2>
-             <pre>` + string(queryOptionsJson) + `</pre>
-             </dl>
-             <h2>Build</h2>
-             <pre>` + version.Info() + ` ` + version.BuildContext() + `</pre>
-             </body>
-             </html>`))
+                <head><title>Consul Exporter</title></head>
+                <body>
+                <h1>Consul Exporter</h1>
+                <p><a href='` + *metricsPath + `'>Metrics</a></p>
+                <h2>Options</h2>
+                <pre>` + string(queryOptionsJson) + `</pre>
+                </dl>
+                <h2>Build</h2>
+                <pre>` + version.Info() + ` ` + version.BuildContext() + `</pre>
+                </body>
+                </html>`))
 	})
 
 	log.Infoln("Listening on", *listenAddress)
