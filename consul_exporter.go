@@ -55,22 +55,22 @@ var (
 	serviceTag = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "service_tag"),
 		"Tags of a service.",
-		[]string{"service_id", "node", "tag"}, nil,
+		[]string{"service_id", "node", "address", "tag"}, nil,
 	)
 	serviceNodesHealthy = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_service_node_healthy"),
 		"Is this service healthy on this node?",
-		[]string{"service_id", "node", "service_name"}, nil,
+		[]string{"service_id", "node", "address", "service_name"}, nil,
 	)
 	nodeChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_node_status"),
 		"Status of health checks associated with a node.",
-		[]string{"check", "node", "status"}, nil,
+		[]string{"check", "node", "address", "status"}, nil,
 	)
 	serviceChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_service_status"),
 		"Status of health checks associated with a service.",
-		[]string{"check", "node", "service_id", "service_name", "status"}, nil,
+		[]string{"check", "node", "address", "service_id", "service_name", "status"}, nil,
 	)
 	keyValues = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_kv"),
@@ -226,6 +226,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	for _, hc := range checks {
 		var passing, warning, critical, maintenance float64
+		var node *consul_api.Node
 
 		switch hc.Status {
 		case consul.HealthPassing:
@@ -238,31 +239,38 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			maintenance = 1
 		}
 
+		for _, n := range nodes {
+			if hc.Node == n.Node {
+				node = n
+				break
+			}
+		}
+
 		if hc.ServiceID == "" {
 			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, consul.HealthPassing,
+				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, node.Address, consul.HealthPassing,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, consul.HealthWarning,
+				nodeChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, node.Address, consul.HealthWarning,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, consul.HealthCritical,
+				nodeChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, node.Address, consul.HealthCritical,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, consul.HealthMaint,
+				nodeChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, node.Address, consul.HealthMaint,
 			)
 		} else {
 			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthPassing,
+				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, node.Address, hc.ServiceID, hc.ServiceName, consul.HealthPassing,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthWarning,
+				serviceChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, node.Address, hc.ServiceID, hc.ServiceName, consul.HealthWarning,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthCritical,
+				serviceChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, node.Address, hc.ServiceID, hc.ServiceName, consul.HealthCritical,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul.HealthMaint,
+				serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, node.Address, hc.ServiceID, hc.ServiceName, consul.HealthMaint,
 			)
 		}
 	}
@@ -307,10 +315,10 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 			}
 		}
 		ch <- prometheus.MustNewConstMetric(
-			serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
+			serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Node.Address, entry.Service.Service,
 		)
 		for _, tag := range entry.Service.Tags {
-			ch <- prometheus.MustNewConstMetric(serviceTag, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, tag)
+			ch <- prometheus.MustNewConstMetric(serviceTag, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, entry.Node.Address, tag)
 		}
 	}
 	return nil
