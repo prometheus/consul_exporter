@@ -13,6 +13,12 @@ make
 ./consul_exporter [flags]
 ```
 
+To run it in docker:
+```bash
+make docker
+docker run  -p 9107:9107 consul-exporter:<git-branch> --consul.server=<consul-addr>:<consul-port
+```
+
 ## Exported Metrics
 
 | Metric | Meaning | Labels |
