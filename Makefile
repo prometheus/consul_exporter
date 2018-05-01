@@ -55,7 +55,6 @@ docker:
 promu:
 	@GOOS=$(shell uname -s | tr A-Z a-z) \
 	        GOARCH=$(subst x86_64,amd64,$(patsubst i%86,386,$(shell uname -m))) \
-					CGO_ENABLED=0 \
 	        $(GO) get -u github.com/prometheus/promu
 
 .PHONY: all style format build test vet tarball docker promu
