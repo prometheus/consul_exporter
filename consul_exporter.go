@@ -206,13 +206,20 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			nodeCount, prometheus.GaugeValue, float64(len(nodes)),
 		)
 	}
-
+	// Get sum of dns lookups
 	metrics, err := e.client.Agent().Metrics()
 	if err != nil {
 		log.Errorf("Can't get metrics: %v", err)
 	} else {
+		dnsSum := float64(0)
+		for i := range metrics.Samples {
+			if metrics.Samples[i].Name == "consul.dns.domain_query" {
+				dnsSum = metrics.Samples[i].Sum
+				break
+			}
+		}
 		ch <- prometheus.MustNewConstMetric(
-			dnsLookupSum, prometheus.GaugeValue, metrics.Samples[0].Sum,
+			dnsLookupSum, prometheus.GaugeValue, dnsSum,
 		)
 	}
 
@@ -391,7 +398,7 @@ func main() {
 	}
 	prometheus.MustRegister(exporter)
 
-	queryOptionsJson, err := json.Marshal(queryOptions)
+	queryOptionsJSON, err := json.Marshal(queryOptions)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -404,7 +411,7 @@ func main() {
              <h1>Consul Exporter</h1>
              <p><a href='` + *metricsPath + `'>Metrics</a></p>
              <h2>Options</h2>
-             <pre>` + string(queryOptionsJson) + `</pre>
+             <pre>` + string(queryOptionsJSON) + `</pre>
              </dl>
              <h2>Build</h2>
              <pre>` + version.Info() + ` ` + version.BuildContext() + `</pre>
