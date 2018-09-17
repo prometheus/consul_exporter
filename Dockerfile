@@ -1,5 +1,5 @@
 FROM        quay.io/prometheus/busybox:latest
-MAINTAINER  The Prometheus Authors <prometheus-developers@googlegroups.com>
+LABEL maintainer="The Prometheus Authors <prometheus-developers@googlegroups.com>"
 
 COPY consul_exporter /bin/consul_exporter
 
