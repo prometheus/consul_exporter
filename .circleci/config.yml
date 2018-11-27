@@ -1,24 +1,29 @@
 ---
 version: 2.1
 
+executors:
+  # Whenever the Go version is updated here, .travis.yml and .promu.yml
+  # should also be updated.
+  golang:
+    docker:
+    - image: circleci/golang:1.11
+
 jobs:
   test:
-    # Whenever the Go version is updated here, .travis.yml should also be
-    # updated.
-    docker:
-    - image: circleci/golang:1.10
-    working_directory: /go/src/github.com/prometheus/consul_exporter
-    resource_class: large
+    executor: golang
 
     steps:
     - checkout
     - run: make promu
     - run: make
+    - run: git diff --exit-code
+    - store_artifacts:
+        path: consul_exporter
+        destination: /build/prometheus
     - run: rm -v consul_exporter
 
   build:
     machine: true
-    working_directory: /home/circleci/.go_workspace/src/github.com/prometheus/consul_exporter
 
     steps:
     - checkout
@@ -28,11 +33,12 @@ jobs:
         root: .
         paths:
         - .build
+    - store_artifacts:
+        path: .build
+        destination: /build
 
   docker_hub_master:
-    docker:
-    - image: circleci/golang:1.10
-    working_directory: /go/src/github.com/prometheus/consul_exporter
+    executor: golang
 
     steps:
     - checkout
@@ -49,9 +55,7 @@ jobs:
     - run: make docker-publish DOCKER_REPO=quay.io/prometheus
 
   docker_hub_release_tags:
-    docker:
-    - image: circleci/golang:1.10
-    working_directory: /go/src/github.com/prometheus/consul_exporter
+    executor: golang
 
     steps:
     - checkout

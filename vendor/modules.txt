@@ -1,0 +1,63 @@
+# github.com/alecthomas/template v0.0.0-20160405071501-a0175ee3bccc
+github.com/alecthomas/template
+github.com/alecthomas/template/parse
+# github.com/alecthomas/units v0.0.0-20151022065526-2efee857e7cf
+github.com/alecthomas/units
+# github.com/armon/go-metrics v0.0.0-20160717043458-3df31a1ada83
+github.com/armon/go-metrics
+# github.com/armon/go-radix v0.0.0-20160115234725-4239b77079c7
+github.com/armon/go-radix
+# github.com/beorn7/perks v0.0.0-20160804104726-4c0e84591b9a
+github.com/beorn7/perks/quantile
+# github.com/golang/protobuf v1.2.0
+github.com/golang/protobuf/proto
+# github.com/hashicorp/consul v0.0.0-20170228230416-ab6c49ab4c61
+github.com/hashicorp/consul/api
+github.com/hashicorp/consul/consul/structs
+github.com/hashicorp/consul/acl
+github.com/hashicorp/consul/types
+# github.com/hashicorp/go-cleanhttp v0.0.0-20170211013415-3573b8b52aa7
+github.com/hashicorp/go-cleanhttp
+# github.com/hashicorp/go-msgpack v0.0.0-20150518234257-fa3f63826f7c
+github.com/hashicorp/go-msgpack/codec
+# github.com/hashicorp/golang-lru v0.0.0-20160207214719-a0d98a5f2880
+github.com/hashicorp/golang-lru
+github.com/hashicorp/golang-lru/simplelru
+# github.com/hashicorp/hcl v0.0.0-20160711231752-d8c773c4cba1
+github.com/hashicorp/hcl
+github.com/hashicorp/hcl/hcl/ast
+github.com/hashicorp/hcl/hcl/parser
+github.com/hashicorp/hcl/hcl/token
+github.com/hashicorp/hcl/json/parser
+github.com/hashicorp/hcl/hcl/scanner
+github.com/hashicorp/hcl/hcl/strconv
+github.com/hashicorp/hcl/json/scanner
+github.com/hashicorp/hcl/json/token
+# github.com/hashicorp/raft v0.0.0-20161110005240-aaad9f10266e
+github.com/hashicorp/raft
+# github.com/hashicorp/serf v0.8.2-0.20170208214939-c5e26c3704ca
+github.com/hashicorp/serf/coordinate
+# github.com/matttproud/golang_protobuf_extensions v1.0.1
+github.com/matttproud/golang_protobuf_extensions/pbutil
+# github.com/prometheus/client_golang v0.0.0-20180131142826-f4fb1b73fb09
+github.com/prometheus/client_golang/prometheus
+# github.com/prometheus/client_model v0.0.0-20150212101744-fa8ad6fec335
+github.com/prometheus/client_model/go
+# github.com/prometheus/common v0.0.0-20180110214958-89604d197083
+github.com/prometheus/common/log
+github.com/prometheus/common/version
+github.com/prometheus/common/expfmt
+github.com/prometheus/common/model
+github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg
+# github.com/prometheus/procfs v0.0.0-20170214153519-a59ae619c824
+github.com/prometheus/procfs
+github.com/prometheus/procfs/xfs
+# github.com/sirupsen/logrus v0.0.0-20161202023507-881bee4e20a5
+github.com/sirupsen/logrus
+# golang.org/x/sys v0.0.0-20170228211807-21f2569f6feb
+golang.org/x/sys/windows/svc/eventlog
+golang.org/x/sys/unix
+golang.org/x/sys/windows
+golang.org/x/sys/windows/registry
+# gopkg.in/alecthomas/kingpin.v2 v2.2.5
+gopkg.in/alecthomas/kingpin.v2
