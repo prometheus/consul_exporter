@@ -19,7 +19,7 @@ import (
 
 	consul_api "github.com/hashicorp/consul/api"
 	consul "github.com/hashicorp/consul/consul/structs"
-	cleanhttp "github.com/hashicorp/go-cleanhttp"
+	"github.com/hashicorp/go-cleanhttp"
 )
 
 const (
@@ -83,19 +83,21 @@ var (
 // Exporter collects Consul stats from the given server and exports them using
 // the prometheus metrics package.
 type Exporter struct {
-	client        *consul_api.Client
-	kvPrefix      string
-	kvFilter      *regexp.Regexp
-	healthSummary bool
+	client           *consul_api.Client
+	kvPrefix         string
+	kvFilter         *regexp.Regexp
+	healthSummary    bool
+	requestLimitChan chan struct{}
 }
 
 type consulOpts struct {
-	uri        string
-	caFile     string
-	certFile   string
-	keyFile    string
-	serverName string
-	timeout    time.Duration
+	uri          string
+	caFile       string
+	certFile     string
+	keyFile      string
+	serverName   string
+	timeout      time.Duration
+	requestLimit int
 }
 
 // NewExporter returns an initialized Exporter.
@@ -136,11 +138,16 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 	}
 
 	// Init our exporter.
+	var requestLimitChan chan struct{}
+	if opts.requestLimit > 0 {
+		requestLimitChan = make(chan struct{}, opts.requestLimit)
+	}
 	return &Exporter{
-		client:        client,
-		kvPrefix:      kvPrefix,
-		kvFilter:      regexp.MustCompile(kvFilter),
-		healthSummary: healthSummary,
+		client:           client,
+		kvPrefix:         kvPrefix,
+		kvFilter:         regexp.MustCompile(kvFilter),
+		healthSummary:    healthSummary,
+		requestLimitChan: requestLimitChan,
 	}, nil
 }
 
@@ -276,9 +283,17 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 	var wg sync.WaitGroup
 
 	for s := range serviceNames {
+		if e.requestLimitChan != nil {
+			e.requestLimitChan <- struct{}{}
+		}
 		wg.Add(1)
 		go func(s string) {
-			defer wg.Done()
+			defer func() {
+				if e.requestLimitChan != nil {
+					<-e.requestLimitChan
+				}
+				wg.Done()
+			}()
 			e.collectOneHealthSummary(ch, s)
 		}(s)
 	}
@@ -360,6 +375,7 @@ func main() {
 	kingpin.Flag("consul.key-file", "File path to a PEM-encoded private key used with the certificate to verify the exporter's authenticity.").Default("").StringVar(&opts.keyFile)
 	kingpin.Flag("consul.server-name", "When provided, this overrides the hostname for the TLS certificate. It can be used to ensure that the certificate name matches the hostname we declare.").Default("").StringVar(&opts.serverName)
 	kingpin.Flag("consul.timeout", "Timeout on HTTP requests to consul.").Default("200ms").DurationVar(&opts.timeout)
+	kingpin.Flag("consul.request-limit", "Limit the maximum number of concurrent requests to consul.").Default("0").IntVar(&opts.requestLimit)
 
 	// Query options.
 	kingpin.Flag("consul.allow_stale", "Allows any Consul server (non-leader) to service a read.").Default("true").BoolVar(&queryOptions.AllowStale)
