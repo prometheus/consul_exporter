@@ -108,7 +108,14 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 	if err != nil {
 		return nil, fmt.Errorf("invalid consul URL: %s", err)
 	}
-	if (u.Scheme != "unix" || u.Host != "") && (u.Host == "" || (u.Scheme != "http" && u.Scheme != "https")) {
+	var address string
+	var scheme string
+	if u.Scheme == "unix" {
+		address = uri
+	} else if u.Host != "" && (u.Scheme == "http" || u.Scheme == "https") {
+		address = u.Host
+		scheme = u.Scheme
+	} else {
 		return nil, fmt.Errorf("invalid consul URL: %s", uri)
 	}
 
@@ -125,8 +132,8 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 	transport.TLSClientConfig = tlsConfig
 
 	config := consul_api.DefaultConfig()
-	config.Address = u.Host
-	config.Scheme = u.Scheme
+	config.Address = address
+	config.Scheme = scheme
 	config.HttpClient.Timeout = opts.timeout
 	config.HttpClient.Transport = transport
 
