@@ -108,7 +108,7 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 	if err != nil {
 		return nil, fmt.Errorf("invalid consul URL: %s", err)
 	}
-	if u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+	if (u.Scheme != "unix" || u.Host != "") && (u.Host == "" || (u.Scheme != "http" && u.Scheme != "https")) {
 		return nil, fmt.Errorf("invalid consul URL: %s", uri)
 	}
 
