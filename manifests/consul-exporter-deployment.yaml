@@ -1,0 +1,30 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  labels:
+    app: consul-exporter
+  name: consul-exporter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consul-exporter
+  template:
+    metadata:
+      labels:
+        app: consul-exporter
+    spec:
+      containers:
+      - args:
+        - --web.listen-address=:9107
+        - --consul.server=consul:8500
+        image: prom/consul-exporter
+        name: consul-exporter
+        ports:
+        - containerPort: 9107
+          name: http
+        resources:
+          limits:
+            memory: 50Mi
+          requests:
+            memory: 25Mi

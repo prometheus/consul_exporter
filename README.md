@@ -116,6 +116,21 @@ docker run -d -p 9107:9107 --dns=172.17.0.1 --dns-search=service.consul \
         prom/consul-exporter --consul.server=consul:8500
 ```
 
+## Using Kubernetes
+
+You can deploy this exporter on a Kubernetes cluster. For example:
+
+```bash
+kubectl apply -f manifests
+```
+
+The metrics endpoint with be available on port 9107 of consul-exporter serivce.
+
+To delete the deployment, run:
+
+```bash
+kubectl delete -f manifests
+```
 
 [circleci]: https://circleci.com/gh/prometheus/consul_exporter
 [hub]: https://hub.docker.com/r/prom/consul-exporter/

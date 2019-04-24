@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: consul-exporter
+  name: consul-exporter
+spec:
+  ports:
+  - name: http
+    port: 9107
+    targetPort: http
+  selector:
+    app: consul-exporter
