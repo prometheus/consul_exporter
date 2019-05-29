@@ -98,6 +98,7 @@ workflows:
           tags:
             only: /.*/
     - docker_hub_master:
+        context: org-context
         requires:
         - test
         - build
@@ -105,6 +106,7 @@ workflows:
           branches:
             only: master
     - docker_hub_release_tags:
+        context: org-context
         requires:
         - test
         - build
