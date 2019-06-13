@@ -300,13 +300,13 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 	wg.Wait()
 }
 
-func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) error {
+func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) {
 	log.Debugf("Fetching health summary for: %s", serviceName)
 
 	service, _, err := e.client.Health().Service(serviceName, "", false, &queryOptions)
 	if err != nil {
 		log.Errorf("Failed to query service health: %v", err)
-		return err
+		return
 	}
 
 	for _, entry := range service {
@@ -327,7 +327,6 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 			ch <- prometheus.MustNewConstMetric(serviceTag, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, tag)
 		}
 	}
-	return nil
 }
 
 func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
