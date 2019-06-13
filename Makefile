@@ -13,9 +13,6 @@
 
 include Makefile.common
 
-STATICCHECK_IGNORE = \
-  github.com/prometheus/consul_exporter/consul_exporter.go:SA1019 \
-
 DOCKER_IMAGE_NAME ?= consul-exporter
 
 # Go modules needs the bzr binary because of the dependency on launchpad.net/gocheck.
