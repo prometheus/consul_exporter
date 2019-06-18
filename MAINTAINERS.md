@@ -1,1 +1,1 @@
-* Tobias Schmidt <tobidt@gmail.com>
+* Simon Pasquier <pasquier.simon@gmail.com>
