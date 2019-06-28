@@ -18,6 +18,7 @@ require (
 	github.com/prometheus/client_golang v1.0.0
 	github.com/prometheus/common v0.4.1
 	github.com/sean-/seed v0.0.0-20170313163322-e2103e2c3529 // indirect
+	github.com/sirupsen/logrus v1.4.2 // indirect
 	golang.org/x/crypto v0.0.0-20181126163421-e657309f52e7 // indirect
 	golang.org/x/net v0.0.0-20181201002055-351d144fa1fc // indirect
 	google.golang.org/appengine v1.3.0 // indirect
