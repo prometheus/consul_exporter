@@ -110,6 +110,7 @@ type consulOpts struct {
 	keyFile    string
 	serverName string
 	timeout    time.Duration
+	insecure   bool
 }
 
 // NewExporter returns an initialized Exporter.
@@ -127,10 +128,11 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 	}
 
 	tlsConfig, err := consul_api.SetupTLSConfig(&consul_api.TLSConfig{
-		Address:  opts.serverName,
-		CAFile:   opts.caFile,
-		CertFile: opts.certFile,
-		KeyFile:  opts.keyFile,
+		Address:            opts.serverName,
+		CAFile:             opts.caFile,
+		CertFile:           opts.certFile,
+		KeyFile:            opts.keyFile,
+		InsecureSkipVerify: opts.insecure,
 	})
 	if err != nil {
 		return nil, err
@@ -373,6 +375,7 @@ func main() {
 	kingpin.Flag("consul.key-file", "File path to a PEM-encoded private key used with the certificate to verify the exporter's authenticity.").Default("").StringVar(&opts.keyFile)
 	kingpin.Flag("consul.server-name", "When provided, this overrides the hostname for the TLS certificate. It can be used to ensure that the certificate name matches the hostname we declare.").Default("").StringVar(&opts.serverName)
 	kingpin.Flag("consul.timeout", "Timeout on HTTP requests to consul.").Default("200ms").DurationVar(&opts.timeout)
+	kingpin.Flag("consul.insecure", "Disable TLS host verification.").Default("false").BoolVar(&opts.insecure)
 
 	// Query options.
 	kingpin.Flag("consul.allow_stale", "Allows any Consul server (non-leader) to service a read.").Default("true").BoolVar(&queryOptions.AllowStale)
