@@ -17,7 +17,3 @@ DOCKER_ARCHS ?= amd64 armv7 arm64
 include Makefile.common
 
 DOCKER_IMAGE_NAME ?= consul-exporter
-
-# Go modules needs the bzr binary because of the dependency on launchpad.net/gocheck.
-$(eval $(call PRECHECK_COMMAND_template,bzr))
-PRECHECK_OPTIONS_bzr = version
