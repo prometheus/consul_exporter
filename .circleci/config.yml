@@ -4,15 +4,19 @@ version: 2.1
 orbs:
   prometheus: prometheus/prometheus@0.1.0
 
-executors:
-  # Whenever the Go version is updated here, .promu.yml should also be updated.
-  golang:
-    docker:
-    - image: circleci/golang:1.12
-
 jobs:
   test:
-    executor: golang
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
+    docker:
+    - image: circleci/golang:1.12
+    - image: consul:1.5.2
+      name: consul
+      # TODO: uncomment these 2 lines once the CI has failed.
+      #      environment:
+      #        CONSUL_LOCAL_CONFIG: '{"node_name":"test"}'
+    environment:
+      CONSUL_SERVER: consul:8500
+      CONSUL_NODE_NAME: test
 
     steps:
     - prometheus/setup_environment
