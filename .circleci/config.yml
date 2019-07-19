@@ -11,9 +11,8 @@ jobs:
     - image: circleci/golang:1.12
     - image: consul:1.5.2
       name: consul
-      # TODO: uncomment these 2 lines once the CI has failed.
-      #      environment:
-      #        CONSUL_LOCAL_CONFIG: '{"node_name":"test"}'
+      environment:
+        CONSUL_LOCAL_CONFIG: '{"node_name":"test"}'
     environment:
       CONSUL_SERVER: consul:8500
       CONSUL_NODE_NAME: test
