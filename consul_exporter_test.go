@@ -13,7 +13,17 @@
 
 package main
 
-import "testing"
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"os"
+	"testing"
+	"time"
+
+	"github.com/prometheus/client_golang/prometheus/testutil"
+	"github.com/prometheus/common/expfmt"
+)
 
 func TestNewExporter(t *testing.T) {
 	cases := []struct {
@@ -35,5 +45,67 @@ func TestNewExporter(t *testing.T) {
 		if !test.ok && err == nil {
 			t.Errorf("expected error w/ %q, but got %q", test.uri, err)
 		}
+	}
+}
+
+func TestCollect(t *testing.T) {
+	addr := os.Getenv("CONSUL_SERVER")
+	if len(addr) == 0 {
+		t.Skipf("CONSUL_SERVER environment variable not set")
+	}
+	node := os.Getenv("CONSUL_NODE_NAME")
+	if len(node) == 0 {
+		t.Skipf("CONSUL_NODE_NAME environment variable not set")
+	}
+
+	exporter, err := NewExporter(consulOpts{uri: addr, timeout: time.Duration(time.Second)}, "", "", true)
+	if err != nil {
+		t.Errorf("expected no error but got %q", err)
+	}
+
+	metrics := `# HELP consul_catalog_service_node_healthy Is this service healthy on this node?
+# TYPE consul_catalog_service_node_healthy gauge
+consul_catalog_service_node_healthy{node="%s",service_id="consul",service_name="consul"} 1
+# HELP consul_catalog_services How many services are in the cluster.
+# TYPE consul_catalog_services gauge
+consul_catalog_services 1
+# HELP consul_health_node_status Status of health checks associated with a node.
+# TYPE consul_health_node_status gauge
+consul_health_node_status{check="serfHealth",node="%s",status="critical"} 0
+consul_health_node_status{check="serfHealth",node="%s",status="maintenance"} 0
+consul_health_node_status{check="serfHealth",node="%s",status="passing"} 1
+consul_health_node_status{check="serfHealth",node="%s",status="warning"} 0
+# HELP consul_raft_leader Does Raft cluster have a leader (according to this node).
+# TYPE consul_raft_leader gauge
+consul_raft_leader 1
+# HELP consul_raft_peers How many peers (servers) are in the Raft cluster.
+# TYPE consul_raft_peers gauge
+consul_raft_peers 1
+# HELP consul_serf_lan_members How many members are in the cluster.
+# TYPE consul_serf_lan_members gauge
+consul_serf_lan_members 1
+# HELP consul_up Was the last query of Consul successful.
+# TYPE consul_up gauge
+consul_up 1
+`
+	expected := bytes.NewReader([]byte(fmt.Sprintf(metrics, node, node, node, node, node)))
+
+	// Only check metrics that are explicitly listed above.
+	var (
+		tp          expfmt.TextParser
+		metricNames []string
+	)
+	mfs, err := tp.TextToMetricFamilies(expected)
+	if err != nil {
+		t.Errorf("expected no error but got %q", err)
+	}
+	for _, mf := range mfs {
+		metricNames = append(metricNames, mf.GetName())
+	}
+
+	expected.Seek(0, io.SeekStart)
+	err = testutil.CollectAndCompare(exporter, expected, metricNames...)
+	if err != nil {
+		t.Errorf("expected no error but got %s", err)
 	}
 }
