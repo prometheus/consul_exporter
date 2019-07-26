@@ -76,7 +76,7 @@ search the entire keyspace.
 ### Environment variables
 
 The consul\_exporter supports all environment variables provided by the official
-[consul/api package](https://github.com/hashicorp/consul/blob/c744792fc4d665363dba0ecfc7d05fdedc9cab32/api/api.go#L23-L43),
+[consul/api package](https://github.com/hashicorp/consul/blob/b2478036d88a7e8eb9d6a0daf1a1c9ad0c8885ca/api/api.go#L24-L74),
 including `CONSUL_HTTP_TOKEN` to set the [ACL](https://www.consul.io/docs/internals/acl.html) token.
 
 ## Useful Queries
