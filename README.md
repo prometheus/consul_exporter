@@ -1,4 +1,4 @@
-# Consul Exporter [![Build Status](https://travis-ci.org/prometheus/consul_exporter.svg)][travis]
+# Consul Exporter
 
 [![CircleCI](https://circleci.com/gh/prometheus/consul_exporter/tree/master.svg?style=shield)][circleci]
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/consul-exporter/status)][quay]
@@ -116,8 +116,6 @@ docker run -d -p 9107:9107 --dns=172.17.0.1 --dns-search=service.consul \
         prom/consul-exporter --consul.server=consul:8500
 ```
 
-
 [circleci]: https://circleci.com/gh/prometheus/consul_exporter
 [hub]: https://hub.docker.com/r/prom/consul-exporter/
-[travis]: https://travis-ci.org/prometheus/consul_exporter
 [quay]: https://quay.io/repository/prometheus/consul-exporter
