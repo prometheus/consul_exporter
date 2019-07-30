@@ -20,6 +20,7 @@ make
 | consul_up | Was the last query of Consul successful | |
 | consul_raft_peers | How many peers (servers) are in the Raft cluster | |
 | consul_serf_lan_members | How many members are in the cluster | |
+| consul_serf_lan_member_status | Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed. | member |
 | consul_catalog_services | How many services are in the cluster | |
 | consul_catalog_service_node_healthy | Is this service healthy on this node | service, node |
 | consul_health_node_status | Status of health checks associated with a node | check, node, status |

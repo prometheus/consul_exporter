@@ -81,6 +81,9 @@ consul_raft_leader 1
 # HELP consul_raft_peers How many peers (servers) are in the Raft cluster.
 # TYPE consul_raft_peers gauge
 consul_raft_peers 1
+# HELP consul_serf_lan_member_status Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.
+# TYPE consul_serf_lan_member_status gauge
+consul_serf_lan_member_status{member="%s"} 1
 # HELP consul_serf_lan_members How many members are in the cluster.
 # TYPE consul_serf_lan_members gauge
 consul_serf_lan_members 1
@@ -88,7 +91,7 @@ consul_serf_lan_members 1
 # TYPE consul_up gauge
 consul_up 1
 `
-	expected := bytes.NewReader([]byte(fmt.Sprintf(metrics, node, node, node, node, node)))
+	expected := bytes.NewReader([]byte(fmt.Sprintf(metrics, node, node, node, node, node, node)))
 
 	// Only check metrics that are explicitly listed above.
 	var (
