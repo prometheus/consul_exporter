@@ -9,7 +9,7 @@ github.com/armon/go-metrics
 github.com/beorn7/perks/quantile
 # github.com/golang/protobuf v1.3.2
 github.com/golang/protobuf/proto
-# github.com/hashicorp/consul/api v1.1.0
+# github.com/hashicorp/consul/api v1.2.0
 github.com/hashicorp/consul/api
 # github.com/hashicorp/go-cleanhttp v0.5.1
 github.com/hashicorp/go-cleanhttp
