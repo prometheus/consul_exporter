@@ -2,20 +2,31 @@
 version: 2.1
 
 orbs:
-  prometheus: prometheus/prometheus@0.1.0
+  prometheus: prometheus/prometheus@0.3.0
 
-jobs:
+executors:
   test:
-    # Whenever the Go version is updated here, .promu.yml should also be updated.
+    parameters:
+      consul_version:
+        type: string
     docker:
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
     - image: circleci/golang:1.13
-    - image: consul:1.5.2
+    - image: consul:<< parameters.consul_version >>
       name: consul
       environment:
         CONSUL_LOCAL_CONFIG: '{"node_name":"test"}'
     environment:
       CONSUL_SERVER: consul:8500
       CONSUL_NODE_NAME: test
+
+jobs:
+  test:
+    parameters:
+      exec:
+        type: executor
+
+    executor: << parameters.exec >>
 
     steps:
     - prometheus/setup_environment
@@ -29,6 +40,18 @@ workflows:
   prometheus:
     jobs:
     - test:
+        name: test-1.5
+        exec:
+          name: test
+          consul_version: "1.5"
+        filters:
+          tags:
+            only: /.*/
+    - test:
+        name: test-1.6
+        exec:
+          name: test
+          consul_version: "1.6"
         filters:
           tags:
             only: /.*/
@@ -40,7 +63,8 @@ workflows:
     - prometheus/publish_master:
         context: org-context
         requires:
-        - test
+        - test-1.5
+        - test-1.6
         - build
         filters:
           branches:
@@ -48,7 +72,8 @@ workflows:
     - prometheus/publish_release:
         context: org-context
         requires:
-        - test
+        - test-1.5
+        - test-1.6
         - build
         filters:
           tags:
