@@ -98,6 +98,12 @@ var (
 	queryOptions = consul_api.QueryOptions{}
 )
 
+type promHTTPLogger struct{}
+
+func (l promHTTPLogger) Println(v ...interface{}) {
+	log.Error(v...)
+}
+
 // Exporter collects Consul stats from the given server and exports them using
 // the prometheus metrics package.
 type Exporter struct {
@@ -322,6 +328,11 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 }
 
 func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) {
+	// See https://github.com/hashicorp/consul/issues/1096.
+	if strings.HasPrefix(serviceName, "/") {
+		log.Warnf("Skipping service %q because it starts with a slash", serviceName)
+		return
+	}
 	log.Debugf("Fetching health summary for: %s", serviceName)
 
 	service, _, err := e.client.Health().Service(serviceName, "", false, &queryOptions)
@@ -344,8 +355,13 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 		ch <- prometheus.MustNewConstMetric(
 			serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
 		)
+		tags := make(map[string]struct{})
 		for _, tag := range entry.Service.Tags {
+			if _, ok := tags[tag]; ok {
+				continue
+			}
 			ch <- prometheus.MustNewConstMetric(serviceTag, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, tag)
+			tags[tag] = struct{}{}
 		}
 	}
 }
@@ -419,7 +435,17 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	http.Handle(*metricsPath, promhttp.Handler())
+	http.Handle(*metricsPath,
+		promhttp.InstrumentMetricHandler(
+			prometheus.DefaultRegisterer,
+			promhttp.HandlerFor(
+				prometheus.DefaultGatherer,
+				promhttp.HandlerOpts{
+					ErrorLog: &promHTTPLogger{},
+				},
+			),
+		),
+	)
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
              <head><title>Consul Exporter</title></head>
