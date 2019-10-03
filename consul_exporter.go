@@ -192,26 +192,22 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect fetches the stats from configured Consul location and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
+	var consulUp float64 = 1
+
 	// How many peers are in the Consul cluster?
 	peers, err := e.client.Status().Peers()
 	if err != nil {
-		ch <- prometheus.MustNewConstMetric(
-			up, prometheus.GaugeValue, 0,
-		)
+		consulUp = 0
 		log.Errorf("Can't query consul: %v", err)
-		return
+	} else {
+		ch <- prometheus.MustNewConstMetric(
+			clusterServers, prometheus.GaugeValue, float64(len(peers)),
+		)
 	}
-
-	// We'll use peers to decide that we're up.
-	ch <- prometheus.MustNewConstMetric(
-		up, prometheus.GaugeValue, 1,
-	)
-	ch <- prometheus.MustNewConstMetric(
-		clusterServers, prometheus.GaugeValue, float64(len(peers)),
-	)
 
 	leader, err := e.client.Status().Leader()
 	if err != nil {
+		consulUp = 0
 		log.Errorf("Can't query consul: %v", err)
 	} else {
 		if len(leader) == 0 {
@@ -228,6 +224,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// How many nodes are registered?
 	nodes, _, err := e.client.Catalog().Nodes(&queryOptions)
 	if err != nil {
+		consulUp = 0
 		log.Errorf("Failed to query catalog for nodes: %v", err)
 	} else {
 		ch <- prometheus.MustNewConstMetric(
@@ -237,6 +234,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// Query for member status.
 	members, err := e.client.Agent().Members(false)
 	if err != nil {
+		consulUp = 0
 		log.Errorf("Failed to query member status: %v", err)
 	} else {
 		for _, entry := range members {
@@ -249,6 +247,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// Query for the full list of services.
 	serviceNames, _, err := e.client.Catalog().Services(&queryOptions)
 	if err != nil {
+		consulUp = 0
 		log.Errorf("Failed to query for services: %v", err)
 	} else {
 		ch <- prometheus.MustNewConstMetric(
@@ -262,6 +261,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 
 	checks, _, err := e.client.Health().State("any", &queryOptions)
 	if err != nil {
+		consulUp = 0
 		log.Errorf("Failed to query service health: %v", err)
 	} else {
 		for _, hc := range checks {
@@ -307,6 +307,10 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 	}
+
+	ch <- prometheus.MustNewConstMetric(
+		up, prometheus.GaugeValue, consulUp,
+	)
 
 	e.collectKeyValues(ch)
 }
