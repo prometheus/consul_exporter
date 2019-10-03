@@ -213,21 +213,22 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	leader, err := e.client.Status().Leader()
 	if err != nil {
 		log.Errorf("Can't query consul: %v", err)
-	}
-	if len(leader) == 0 {
-		ch <- prometheus.MustNewConstMetric(
-			clusterLeader, prometheus.GaugeValue, 0,
-		)
 	} else {
-		ch <- prometheus.MustNewConstMetric(
-			clusterLeader, prometheus.GaugeValue, 1,
-		)
+		if len(leader) == 0 {
+			ch <- prometheus.MustNewConstMetric(
+				clusterLeader, prometheus.GaugeValue, 0,
+			)
+		} else {
+			ch <- prometheus.MustNewConstMetric(
+				clusterLeader, prometheus.GaugeValue, 1,
+			)
+		}
 	}
 
 	// How many nodes are registered?
 	nodes, _, err := e.client.Catalog().Nodes(&queryOptions)
 	if err != nil {
-		// FIXME: How should we handle a partial failure like this?
+		log.Errorf("Failed to query catalog for nodes: %v", err)
 	} else {
 		ch <- prometheus.MustNewConstMetric(
 			nodeCount, prometheus.GaugeValue, float64(len(nodes)),
@@ -236,7 +237,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// Query for member status.
 	members, err := e.client.Agent().Members(false)
 	if err != nil {
-		// FIXME: How should we handle a partial failure like this?
+		log.Errorf("Failed to query member status: %v", err)
 	} else {
 		for _, entry := range members {
 			ch <- prometheus.MustNewConstMetric(
@@ -248,12 +249,12 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	// Query for the full list of services.
 	serviceNames, _, err := e.client.Catalog().Services(&queryOptions)
 	if err != nil {
-		// FIXME: How should we handle a partial failure like this?
-		return
+		log.Errorf("Failed to query for services: %v", err)
+	} else {
+		ch <- prometheus.MustNewConstMetric(
+			serviceCount, prometheus.GaugeValue, float64(len(serviceNames)),
+		)
 	}
-	ch <- prometheus.MustNewConstMetric(
-		serviceCount, prometheus.GaugeValue, float64(len(serviceNames)),
-	)
 
 	if e.healthSummary {
 		e.collectHealthSummary(ch, serviceNames)
@@ -262,49 +263,48 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	checks, _, err := e.client.Health().State("any", &queryOptions)
 	if err != nil {
 		log.Errorf("Failed to query service health: %v", err)
-		return
-	}
+	} else {
+		for _, hc := range checks {
+			var passing, warning, critical, maintenance float64
 
-	for _, hc := range checks {
-		var passing, warning, critical, maintenance float64
+			switch hc.Status {
+			case consul_api.HealthPassing:
+				passing = 1
+			case consul_api.HealthWarning:
+				warning = 1
+			case consul_api.HealthCritical:
+				critical = 1
+			case consul_api.HealthMaint:
+				maintenance = 1
+			}
 
-		switch hc.Status {
-		case consul_api.HealthPassing:
-			passing = 1
-		case consul_api.HealthWarning:
-			warning = 1
-		case consul_api.HealthCritical:
-			critical = 1
-		case consul_api.HealthMaint:
-			maintenance = 1
-		}
-
-		if hc.ServiceID == "" {
-			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, consul_api.HealthPassing,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, consul_api.HealthWarning,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, consul_api.HealthCritical,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				nodeChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, consul_api.HealthMaint,
-			)
-		} else {
-			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthPassing,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthWarning,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthCritical,
-			)
-			ch <- prometheus.MustNewConstMetric(
-				serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthMaint,
-			)
+			if hc.ServiceID == "" {
+				ch <- prometheus.MustNewConstMetric(
+					nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, consul_api.HealthPassing,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, consul_api.HealthWarning,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, consul_api.HealthCritical,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					nodeChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, consul_api.HealthMaint,
+				)
+			} else {
+				ch <- prometheus.MustNewConstMetric(
+					serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthPassing,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					serviceChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthWarning,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					serviceChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthCritical,
+				)
+				ch <- prometheus.MustNewConstMetric(
+					serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthMaint,
+				)
+			}
 		}
 	}
 
