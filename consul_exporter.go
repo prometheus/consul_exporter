@@ -430,7 +430,7 @@ func main() {
 	}
 	prometheus.MustRegister(exporter)
 
-	queryOptionsJson, err := json.Marshal(queryOptions)
+	queryOptionsJson, err := json.MarshalIndent(queryOptions, "", "    ")
 	if err != nil {
 		log.Fatalln(err)
 	}
