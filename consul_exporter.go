@@ -192,127 +192,146 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect fetches the stats from configured Consul location and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	var consulUp float64 = 1
+	ok := e.collectPeersMetric(ch)
+	ok = e.collectLeaderMetric(ch) && ok
+	ok = e.collectNodesMetric(ch) && ok
+	ok = e.collectMembersMetric(ch) && ok
+	ok = e.collectServicesMetric(ch) && ok
+	ok = e.collectHealthStateMetric(ch) && ok
 
-	// How many peers are in the Consul cluster?
+	if ok {
+		ch <- prometheus.MustNewConstMetric(
+			up, prometheus.GaugeValue, 1.0,
+		)
+	} else {
+		ch <- prometheus.MustNewConstMetric(
+			up, prometheus.GaugeValue, 0.0,
+		)
+	}
+
+	e.collectKeyValues(ch)
+}
+
+func (e *Exporter) collectPeersMetric(ch chan<- prometheus.Metric) bool {
 	peers, err := e.client.Status().Peers()
 	if err != nil {
-		consulUp = 0
 		log.Errorf("Can't query consul: %v", err)
-	} else {
-		ch <- prometheus.MustNewConstMetric(
-			clusterServers, prometheus.GaugeValue, float64(len(peers)),
-		)
+		return false
 	}
+	ch <- prometheus.MustNewConstMetric(
+		clusterServers, prometheus.GaugeValue, float64(len(peers)),
+	)
+	return true
+}
 
+func (e *Exporter) collectLeaderMetric(ch chan<- prometheus.Metric) bool {
 	leader, err := e.client.Status().Leader()
 	if err != nil {
-		consulUp = 0
 		log.Errorf("Can't query consul: %v", err)
-	} else {
-		if len(leader) == 0 {
-			ch <- prometheus.MustNewConstMetric(
-				clusterLeader, prometheus.GaugeValue, 0,
-			)
-		} else {
-			ch <- prometheus.MustNewConstMetric(
-				clusterLeader, prometheus.GaugeValue, 1,
-			)
-		}
+		return false
 	}
+	if len(leader) == 0 {
+		ch <- prometheus.MustNewConstMetric(
+			clusterLeader, prometheus.GaugeValue, 0,
+		)
+	} else {
+		ch <- prometheus.MustNewConstMetric(
+			clusterLeader, prometheus.GaugeValue, 1,
+		)
+	}
+	return true
+}
 
-	// How many nodes are registered?
+func (e *Exporter) collectNodesMetric(ch chan<- prometheus.Metric) bool {
 	nodes, _, err := e.client.Catalog().Nodes(&queryOptions)
 	if err != nil {
-		consulUp = 0
 		log.Errorf("Failed to query catalog for nodes: %v", err)
-	} else {
-		ch <- prometheus.MustNewConstMetric(
-			nodeCount, prometheus.GaugeValue, float64(len(nodes)),
-		)
+		return false
 	}
-	// Query for member status.
+	ch <- prometheus.MustNewConstMetric(
+		nodeCount, prometheus.GaugeValue, float64(len(nodes)),
+	)
+	return true
+}
+
+func (e *Exporter) collectMembersMetric(ch chan<- prometheus.Metric) bool {
 	members, err := e.client.Agent().Members(false)
 	if err != nil {
-		consulUp = 0
 		log.Errorf("Failed to query member status: %v", err)
-	} else {
-		for _, entry := range members {
-			ch <- prometheus.MustNewConstMetric(
-				memberStatus, prometheus.GaugeValue, float64(entry.Status), entry.Name,
-			)
-		}
+		return false
 	}
-
-	// Query for the full list of services.
-	serviceNames, _, err := e.client.Catalog().Services(&queryOptions)
-	if err != nil {
-		consulUp = 0
-		log.Errorf("Failed to query for services: %v", err)
-	} else {
+	for _, entry := range members {
 		ch <- prometheus.MustNewConstMetric(
-			serviceCount, prometheus.GaugeValue, float64(len(serviceNames)),
+			memberStatus, prometheus.GaugeValue, float64(entry.Status), entry.Name,
 		)
 	}
+	return true
+}
 
+func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
+	serviceNames, _, err := e.client.Catalog().Services(&queryOptions)
+	if err != nil {
+		log.Errorf("Failed to query for services: %v", err)
+		return false
+	}
+	ch <- prometheus.MustNewConstMetric(
+		serviceCount, prometheus.GaugeValue, float64(len(serviceNames)),
+	)
 	if e.healthSummary {
 		e.collectHealthSummary(ch, serviceNames)
 	}
+	return true
+}
 
+func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 	checks, _, err := e.client.Health().State("any", &queryOptions)
 	if err != nil {
-		consulUp = 0
 		log.Errorf("Failed to query service health: %v", err)
-	} else {
-		for _, hc := range checks {
-			var passing, warning, critical, maintenance float64
+		return false
+	}
+	for _, hc := range checks {
+		var passing, warning, critical, maintenance float64
 
-			switch hc.Status {
-			case consul_api.HealthPassing:
-				passing = 1
-			case consul_api.HealthWarning:
-				warning = 1
-			case consul_api.HealthCritical:
-				critical = 1
-			case consul_api.HealthMaint:
-				maintenance = 1
-			}
+		switch hc.Status {
+		case consul_api.HealthPassing:
+			passing = 1
+		case consul_api.HealthWarning:
+			warning = 1
+		case consul_api.HealthCritical:
+			critical = 1
+		case consul_api.HealthMaint:
+			maintenance = 1
+		}
 
-			if hc.ServiceID == "" {
-				ch <- prometheus.MustNewConstMetric(
-					nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, consul_api.HealthPassing,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					nodeChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, consul_api.HealthWarning,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					nodeChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, consul_api.HealthCritical,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					nodeChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, consul_api.HealthMaint,
-				)
-			} else {
-				ch <- prometheus.MustNewConstMetric(
-					serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthPassing,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					serviceChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthWarning,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					serviceChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthCritical,
-				)
-				ch <- prometheus.MustNewConstMetric(
-					serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthMaint,
-				)
-			}
+		if hc.ServiceID == "" {
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, consul_api.HealthPassing,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, consul_api.HealthWarning,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, consul_api.HealthCritical,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				nodeChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, consul_api.HealthMaint,
+			)
+		} else {
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, passing, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthPassing,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, warning, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthWarning,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, critical, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthCritical,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthMaint,
+			)
 		}
 	}
-
-	ch <- prometheus.MustNewConstMetric(
-		up, prometheus.GaugeValue, consulUp,
-	)
-
-	e.collectKeyValues(ch)
+	return true
 }
 
 // collectHealthSummary collects health information about every node+service
