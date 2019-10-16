@@ -177,6 +177,7 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 		kvPrefix:      kvPrefix,
 		kvFilter:      regexp.MustCompile(kvFilter),
 		healthSummary: healthSummary,
+		logger:        log.NewLogfmtLogger(os.Stdout),
 	}, nil
 }
 
@@ -451,7 +452,9 @@ func main() {
 			promhttp.HandlerFor(
 				prometheus.DefaultGatherer,
 				promhttp.HandlerOpts{
-					ErrorLog: &promHTTPLogger{},
+					ErrorLog: &promHTTPLogger{
+						logger: log.NewLogfmtLogger(os.Stderr),
+					},
 				},
 			),
 		),
