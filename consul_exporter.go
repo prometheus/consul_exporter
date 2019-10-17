@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -278,7 +277,9 @@ func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
 		serviceCount, prometheus.GaugeValue, float64(len(serviceNames)),
 	)
 	if e.healthSummary {
-		e.collectHealthSummary(ch, serviceNames)
+		if ok := e.collectHealthSummary(ch, serviceNames); !ok {
+			return false
+		}
 	}
 	return true
 }
@@ -336,32 +337,36 @@ func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 
 // collectHealthSummary collects health information about every node+service
 // combination. It will cause one lookup query per service.
-func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceNames map[string][]string) {
-	var wg sync.WaitGroup
+func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceNames map[string][]string) bool {
+	ok := make(chan bool)
 
 	for s := range serviceNames {
-		wg.Add(1)
 		go func(s string) {
-			defer wg.Done()
-			e.collectOneHealthSummary(ch, s)
+			ok <- e.collectOneHealthSummary(ch, s)
 		}(s)
 	}
 
-	wg.Wait()
+	allOK := true
+	for range serviceNames {
+		allOK = <-ok && allOK
+	}
+	close(ok)
+
+	return allOK
 }
 
-func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) {
+func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) bool {
 	// See https://github.com/hashicorp/consul/issues/1096.
 	if strings.HasPrefix(serviceName, "/") {
 		log.Warnf("Skipping service %q because it starts with a slash", serviceName)
-		return
+		return true
 	}
 	log.Debugf("Fetching health summary for: %s", serviceName)
 
 	service, _, err := e.client.Health().Service(serviceName, "", false, &queryOptions)
 	if err != nil {
 		log.Errorf("Failed to query service health: %v", err)
-		return
+		return false
 	}
 
 	for _, entry := range service {
@@ -387,6 +392,7 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 			tags[tag] = struct{}{}
 		}
 	}
+	return true
 }
 
 func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
