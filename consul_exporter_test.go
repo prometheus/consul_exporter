@@ -21,6 +21,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/go-kit/kit/log"
 	consul_api "github.com/hashicorp/consul/api"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/expfmt"
@@ -39,7 +40,7 @@ func TestNewExporter(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		_, err := NewExporter(consulOpts{uri: test.uri}, "", ".*", true)
+		_, err := NewExporter(consulOpts{uri: test.uri}, "", ".*", true, log.NewNopLogger())
 		if test.ok && err != nil {
 			t.Errorf("expected no error w/ %q, but got %q", test.uri, err)
 		}
@@ -140,7 +141,7 @@ consul_catalog_services 3
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			exporter, err := NewExporter(consulOpts{uri: addr, timeout: time.Duration(time.Second)}, "", "", true)
+			exporter, err := NewExporter(consulOpts{uri: addr, timeout: time.Duration(time.Second)}, "", "", true, log.NewNopLogger())
 			if err != nil {
 				t.Errorf("expected no error but got %q", err)
 			}

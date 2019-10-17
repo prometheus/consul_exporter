@@ -107,7 +107,7 @@ type promHTTPLogger struct {
 }
 
 func (l promHTTPLogger) Println(v ...interface{}) {
-	level.Error(l.logger).Log("msg", v)
+	level.Error(l.logger).Log("msg", fmt.Sprintf("%v", v))
 }
 
 // Exporter collects Consul stats from the given server and exports them using
@@ -131,7 +131,7 @@ type consulOpts struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool) (*Exporter, error) {
+func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool, logger log.Logger) (*Exporter, error) {
 	uri := opts.uri
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
@@ -177,7 +177,7 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 		kvPrefix:      kvPrefix,
 		kvFilter:      regexp.MustCompile(kvFilter),
 		healthSummary: healthSummary,
-		logger:        log.NewLogfmtLogger(os.Stdout),
+		logger:        logger,
 	}, nil
 }
 
@@ -338,7 +338,7 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) {
 	// See https://github.com/hashicorp/consul/issues/1096.
 	if strings.HasPrefix(serviceName, "/") {
-		level.Warn(e.logger).Log("msg", "Skipping service because it starts with a slash", "service name", serviceName)
+		level.Warn(e.logger).Log("msg", "Skipping service because it starts with a slash", "service_name", serviceName)
 		return
 	}
 	level.Debug(e.logger).Log("msg", "Fetching health summary", "serviceName", serviceName)
@@ -431,11 +431,11 @@ func main() {
 	logger := promlog.New(promlogConfig)
 
 	level.Info(logger).Log("msg", "Starting consul_exporter", "version", version.Info())
-	level.Info(logger).Log("msg", "Build context", version.BuildContext())
+	level.Info(logger).Log("build_context", version.BuildContext())
 
-	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary)
+	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary, logger)
 	if err != nil {
-		level.Error(logger).Log("msg", "Error creating an exporter", "err", err)
+		level.Error(logger).Log("msg", "Error creating the exporter", "err", err)
 		os.Exit(1)
 	}
 	prometheus.MustRegister(exporter)
@@ -453,7 +453,7 @@ func main() {
 				prometheus.DefaultGatherer,
 				promhttp.HandlerOpts{
 					ErrorLog: &promHTTPLogger{
-						logger: log.NewLogfmtLogger(os.Stderr),
+						logger: logger,
 					},
 				},
 			),
