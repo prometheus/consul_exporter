@@ -197,6 +197,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ok = e.collectMembersMetric(ch) && ok
 	ok = e.collectServicesMetric(ch) && ok
 	ok = e.collectHealthStateMetric(ch) && ok
+	ok = e.collectKeyValues(ch) && ok
 
 	if ok {
 		ch <- prometheus.MustNewConstMetric(
@@ -207,8 +208,6 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			up, prometheus.GaugeValue, 0.0,
 		)
 	}
-
-	e.collectKeyValues(ch)
 }
 
 func (e *Exporter) collectPeersMetric(ch chan<- prometheus.Metric) bool {
@@ -395,16 +394,16 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 	return true
 }
 
-func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
+func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) bool {
 	if e.kvPrefix == "" {
-		return
+		return true
 	}
 
 	kv := e.client.KV()
 	pairs, _, err := kv.List(e.kvPrefix, &queryOptions)
 	if err != nil {
 		log.Errorf("Error fetching key/values: %s", err)
-		return
+		return false
 	}
 
 	for _, pair := range pairs {
@@ -417,6 +416,7 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
 			}
 		}
 	}
+	return true
 }
 
 func init() {
