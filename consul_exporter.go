@@ -22,7 +22,6 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -192,27 +191,42 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect fetches the stats from configured Consul location and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	// How many peers are in the Consul cluster?
+	ok := e.collectPeersMetric(ch)
+	ok = e.collectLeaderMetric(ch) && ok
+	ok = e.collectNodesMetric(ch) && ok
+	ok = e.collectMembersMetric(ch) && ok
+	ok = e.collectServicesMetric(ch) && ok
+	ok = e.collectHealthStateMetric(ch) && ok
+	ok = e.collectKeyValues(ch) && ok
+
+	if ok {
+		ch <- prometheus.MustNewConstMetric(
+			up, prometheus.GaugeValue, 1.0,
+		)
+	} else {
+		ch <- prometheus.MustNewConstMetric(
+			up, prometheus.GaugeValue, 0.0,
+		)
+	}
+}
+
+func (e *Exporter) collectPeersMetric(ch chan<- prometheus.Metric) bool {
 	peers, err := e.client.Status().Peers()
 	if err != nil {
-		ch <- prometheus.MustNewConstMetric(
-			up, prometheus.GaugeValue, 0,
-		)
 		log.Errorf("Can't query consul: %v", err)
-		return
+		return false
 	}
-
-	// We'll use peers to decide that we're up.
-	ch <- prometheus.MustNewConstMetric(
-		up, prometheus.GaugeValue, 1,
-	)
 	ch <- prometheus.MustNewConstMetric(
 		clusterServers, prometheus.GaugeValue, float64(len(peers)),
 	)
+	return true
+}
 
+func (e *Exporter) collectLeaderMetric(ch chan<- prometheus.Metric) bool {
 	leader, err := e.client.Status().Leader()
 	if err != nil {
 		log.Errorf("Can't query consul: %v", err)
+		return false
 	}
 	if len(leader) == 0 {
 		ch <- prometheus.MustNewConstMetric(
@@ -223,48 +237,58 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			clusterLeader, prometheus.GaugeValue, 1,
 		)
 	}
+	return true
+}
 
-	// How many nodes are registered?
+func (e *Exporter) collectNodesMetric(ch chan<- prometheus.Metric) bool {
 	nodes, _, err := e.client.Catalog().Nodes(&queryOptions)
 	if err != nil {
-		// FIXME: How should we handle a partial failure like this?
-	} else {
-		ch <- prometheus.MustNewConstMetric(
-			nodeCount, prometheus.GaugeValue, float64(len(nodes)),
-		)
+		log.Errorf("Failed to query catalog for nodes: %v", err)
+		return false
 	}
-	// Query for member status.
+	ch <- prometheus.MustNewConstMetric(
+		nodeCount, prometheus.GaugeValue, float64(len(nodes)),
+	)
+	return true
+}
+
+func (e *Exporter) collectMembersMetric(ch chan<- prometheus.Metric) bool {
 	members, err := e.client.Agent().Members(false)
 	if err != nil {
-		// FIXME: How should we handle a partial failure like this?
-	} else {
-		for _, entry := range members {
-			ch <- prometheus.MustNewConstMetric(
-				memberStatus, prometheus.GaugeValue, float64(entry.Status), entry.Name,
-			)
-		}
+		log.Errorf("Failed to query member status: %v", err)
+		return false
 	}
+	for _, entry := range members {
+		ch <- prometheus.MustNewConstMetric(
+			memberStatus, prometheus.GaugeValue, float64(entry.Status), entry.Name,
+		)
+	}
+	return true
+}
 
-	// Query for the full list of services.
+func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
 	serviceNames, _, err := e.client.Catalog().Services(&queryOptions)
 	if err != nil {
-		// FIXME: How should we handle a partial failure like this?
-		return
+		log.Errorf("Failed to query for services: %v", err)
+		return false
 	}
 	ch <- prometheus.MustNewConstMetric(
 		serviceCount, prometheus.GaugeValue, float64(len(serviceNames)),
 	)
-
 	if e.healthSummary {
-		e.collectHealthSummary(ch, serviceNames)
+		if ok := e.collectHealthSummary(ch, serviceNames); !ok {
+			return false
+		}
 	}
+	return true
+}
 
+func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 	checks, _, err := e.client.Health().State("any", &queryOptions)
 	if err != nil {
 		log.Errorf("Failed to query service health: %v", err)
-		return
+		return false
 	}
-
 	for _, hc := range checks {
 		var passing, warning, critical, maintenance float64
 
@@ -307,38 +331,41 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 			)
 		}
 	}
-
-	e.collectKeyValues(ch)
+	return true
 }
 
 // collectHealthSummary collects health information about every node+service
 // combination. It will cause one lookup query per service.
-func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceNames map[string][]string) {
-	var wg sync.WaitGroup
+func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceNames map[string][]string) bool {
+	ok := make(chan bool)
 
 	for s := range serviceNames {
-		wg.Add(1)
 		go func(s string) {
-			defer wg.Done()
-			e.collectOneHealthSummary(ch, s)
+			ok <- e.collectOneHealthSummary(ch, s)
 		}(s)
 	}
 
-	wg.Wait()
+	allOK := true
+	for range serviceNames {
+		allOK = <-ok && allOK
+	}
+	close(ok)
+
+	return allOK
 }
 
-func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) {
+func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) bool {
 	// See https://github.com/hashicorp/consul/issues/1096.
 	if strings.HasPrefix(serviceName, "/") {
 		log.Warnf("Skipping service %q because it starts with a slash", serviceName)
-		return
+		return true
 	}
 	log.Debugf("Fetching health summary for: %s", serviceName)
 
 	service, _, err := e.client.Health().Service(serviceName, "", false, &queryOptions)
 	if err != nil {
 		log.Errorf("Failed to query service health: %v", err)
-		return
+		return false
 	}
 
 	for _, entry := range service {
@@ -364,18 +391,19 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 			tags[tag] = struct{}{}
 		}
 	}
+	return true
 }
 
-func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
+func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) bool {
 	if e.kvPrefix == "" {
-		return
+		return true
 	}
 
 	kv := e.client.KV()
 	pairs, _, err := kv.List(e.kvPrefix, &queryOptions)
 	if err != nil {
 		log.Errorf("Error fetching key/values: %s", err)
-		return
+		return false
 	}
 
 	for _, pair := range pairs {
@@ -388,6 +416,7 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) {
 			}
 		}
 	}
+	return true
 }
 
 func init() {
