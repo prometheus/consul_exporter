@@ -19,19 +19,23 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/log"
+	"github.com/prometheus/common/promlog"
+	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
 
 	consul_api "github.com/hashicorp/consul/api"
-	cleanhttp "github.com/hashicorp/go-cleanhttp"
+	"github.com/hashicorp/go-cleanhttp"
 )
 
 const (
@@ -97,10 +101,12 @@ var (
 	queryOptions = consul_api.QueryOptions{}
 )
 
-type promHTTPLogger struct{}
+type promHTTPLogger struct {
+	logger log.Logger
+}
 
 func (l promHTTPLogger) Println(v ...interface{}) {
-	log.Error(v...)
+	level.Error(l.logger).Log("msg", fmt.Sprint(v...))
 }
 
 // Exporter collects Consul stats from the given server and exports them using
@@ -110,6 +116,7 @@ type Exporter struct {
 	kvPrefix      string
 	kvFilter      *regexp.Regexp
 	healthSummary bool
+	logger        log.Logger
 }
 
 type consulOpts struct {
@@ -123,7 +130,7 @@ type consulOpts struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool) (*Exporter, error) {
+func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool, logger log.Logger) (*Exporter, error) {
 	uri := opts.uri
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
@@ -169,6 +176,7 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool)
 		kvPrefix:      kvPrefix,
 		kvFilter:      regexp.MustCompile(kvFilter),
 		healthSummary: healthSummary,
+		logger:        logger,
 	}, nil
 }
 
@@ -213,7 +221,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 func (e *Exporter) collectPeersMetric(ch chan<- prometheus.Metric) bool {
 	peers, err := e.client.Status().Peers()
 	if err != nil {
-		log.Errorf("Can't query consul: %v", err)
+		level.Error(e.logger).Log("msg", "Can't query consul", "err", err)
 		return false
 	}
 	ch <- prometheus.MustNewConstMetric(
@@ -225,7 +233,7 @@ func (e *Exporter) collectPeersMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectLeaderMetric(ch chan<- prometheus.Metric) bool {
 	leader, err := e.client.Status().Leader()
 	if err != nil {
-		log.Errorf("Can't query consul: %v", err)
+		level.Error(e.logger).Log("msg", "Can't query consul", "err", err)
 		return false
 	}
 	if len(leader) == 0 {
@@ -243,7 +251,7 @@ func (e *Exporter) collectLeaderMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectNodesMetric(ch chan<- prometheus.Metric) bool {
 	nodes, _, err := e.client.Catalog().Nodes(&queryOptions)
 	if err != nil {
-		log.Errorf("Failed to query catalog for nodes: %v", err)
+		level.Error(e.logger).Log("msg", "Failed to query catalog for nodes", "err", err)
 		return false
 	}
 	ch <- prometheus.MustNewConstMetric(
@@ -255,7 +263,7 @@ func (e *Exporter) collectNodesMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectMembersMetric(ch chan<- prometheus.Metric) bool {
 	members, err := e.client.Agent().Members(false)
 	if err != nil {
-		log.Errorf("Failed to query member status: %v", err)
+		level.Error(e.logger).Log("msg", "Failed to query member status", "err", err)
 		return false
 	}
 	for _, entry := range members {
@@ -269,7 +277,7 @@ func (e *Exporter) collectMembersMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
 	serviceNames, _, err := e.client.Catalog().Services(&queryOptions)
 	if err != nil {
-		log.Errorf("Failed to query for services: %v", err)
+		level.Error(e.logger).Log("msg", "Failed to query for services", "err", err)
 		return false
 	}
 	ch <- prometheus.MustNewConstMetric(
@@ -286,7 +294,7 @@ func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 	checks, _, err := e.client.Health().State("any", &queryOptions)
 	if err != nil {
-		log.Errorf("Failed to query service health: %v", err)
+		level.Error(e.logger).Log("msg", "Failed to query service health", "err", err)
 		return false
 	}
 	for _, hc := range checks {
@@ -357,14 +365,14 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) bool {
 	// See https://github.com/hashicorp/consul/issues/1096.
 	if strings.HasPrefix(serviceName, "/") {
-		log.Warnf("Skipping service %q because it starts with a slash", serviceName)
+		level.Warn(e.logger).Log("msg", "Skipping service because it starts with a slash", "service_name", serviceName)
 		return true
 	}
-	log.Debugf("Fetching health summary for: %s", serviceName)
+	level.Debug(e.logger).Log("msg", "Fetching health summary", "serviceName", serviceName)
 
 	service, _, err := e.client.Health().Service(serviceName, "", false, &queryOptions)
 	if err != nil {
-		log.Errorf("Failed to query service health: %v", err)
+		level.Error(e.logger).Log("msg", "Failed to query service health", "err", err)
 		return false
 	}
 
@@ -402,7 +410,7 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) bool {
 	kv := e.client.KV()
 	pairs, _, err := kv.List(e.kvPrefix, &queryOptions)
 	if err != nil {
-		log.Errorf("Error fetching key/values: %s", err)
+		level.Error(e.logger).Log("msg", "Error fetching key/values", "err", err)
 		return false
 	}
 
@@ -445,23 +453,26 @@ func main() {
 	kingpin.Flag("consul.allow_stale", "Allows any Consul server (non-leader) to service a read.").Default("true").BoolVar(&queryOptions.AllowStale)
 	kingpin.Flag("consul.require_consistent", "Forces the read to be fully consistent.").Default("false").BoolVar(&queryOptions.RequireConsistent)
 
-	log.AddFlags(kingpin.CommandLine)
-	kingpin.Version(version.Print("consul_exporter"))
+	promlogConfig := &promlog.Config{}
+	flag.AddFlags(kingpin.CommandLine, promlogConfig)
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
+	logger := promlog.New(promlogConfig)
 
-	log.Infoln("Starting consul_exporter", version.Info())
-	log.Infoln("Build context", version.BuildContext())
+	level.Info(logger).Log("msg", "Starting consul_exporter", "version", version.Info())
+	level.Info(logger).Log("build_context", version.BuildContext())
 
-	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary)
+	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary, logger)
 	if err != nil {
-		log.Fatalln(err)
+		level.Error(logger).Log("msg", "Error creating the exporter", "err", err)
+		os.Exit(1)
 	}
 	prometheus.MustRegister(exporter)
 
 	queryOptionsJson, err := json.MarshalIndent(queryOptions, "", "    ")
 	if err != nil {
-		log.Fatalln(err)
+		level.Error(logger).Log("msg", "Error marshaling query options", "err", err)
+		os.Exit(1)
 	}
 
 	http.Handle(*metricsPath,
@@ -470,7 +481,9 @@ func main() {
 			promhttp.HandlerFor(
 				prometheus.DefaultGatherer,
 				promhttp.HandlerOpts{
-					ErrorLog: &promHTTPLogger{},
+					ErrorLog: &promHTTPLogger{
+						logger: logger,
+					},
 				},
 			),
 		),
@@ -490,6 +503,9 @@ func main() {
              </html>`))
 	})
 
-	log.Infoln("Listening on", *listenAddress)
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
+	level.Info(logger).Log("msg", "Listening on address", "address", *listenAddress)
+	if err := http.ListenAndServe(*listenAddress, nil); err != nil {
+		level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
+		os.Exit(1)
+	}
 }
