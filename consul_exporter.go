@@ -98,6 +98,26 @@ var (
 		"The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted.",
 		[]string{"key"}, nil,
 	)
+	dnsLookupSumTime = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "dns_lookups_sum_time"),
+		"Sum of DNS lookups time in the last 10 seconds (ms).",
+		nil, nil,
+	)
+	dnsLookupMean = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "dns_lookups_mean"),
+		"Mean of DNS lookups time in the last 10 seconds (ms).",
+		nil, nil,
+	)
+	dnsLookupMax = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "dns_lookups_max"),
+		"Longest DNS lookup in the last 10 seconds (ms).",
+		nil, nil,
+	)
+	dnsLookupCount = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "dns_lookups"),
+		"Number of DNS lookups time in the last 10 seconds (ms).",
+		nil, nil,
+	)
 	queryOptions = consul_api.QueryOptions{}
 )
 
@@ -194,6 +214,10 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- serviceChecks
 	ch <- keyValues
 	ch <- serviceTag
+	ch <- dnsLookupSumTime
+	ch <- dnsLookupMax
+	ch <- dnsLookupMean
+	ch <- dnsLookupCount
 }
 
 // Collect fetches the stats from configured Consul location and delivers them
@@ -206,6 +230,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ok = e.collectServicesMetric(ch) && ok
 	ok = e.collectHealthStateMetric(ch) && ok
 	ok = e.collectKeyValues(ch) && ok
+	ok = e.collectDNSLookups(ch) && ok
 
 	if ok {
 		ch <- prometheus.MustNewConstMetric(
@@ -425,6 +450,41 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) bool {
 		}
 	}
 	return true
+}
+
+func (e *Exporter) collectDNSLookups(ch chan<- prometheus.Metric) bool {
+	metrics, err := e.client.Agent().Metrics()
+	if err != nil {
+		level.Error(e.logger).Log("msg", "Can't get metrics", "err", err)
+		return false
+	} else {
+		dnsSum := float64(0)
+		dnsMax := float64(0)
+		dnsMean := float64(0)
+		dnsCount := 0
+		for i := range metrics.Samples {
+			if metrics.Samples[i].Name == "consul.dns.domain_query" {
+				dnsSum = metrics.Samples[i].Sum
+				dnsMax = metrics.Samples[i].Max
+				dnsCount = metrics.Samples[i].Count
+				dnsMean = metrics.Samples[i].Mean
+				break
+			}
+		}
+		ch <- prometheus.MustNewConstMetric(
+			dnsLookupSumTime, prometheus.GaugeValue, dnsSum,
+		)
+		ch <- prometheus.MustNewConstMetric(
+			dnsLookupMax, prometheus.GaugeValue, dnsMax,
+		)
+		ch <- prometheus.MustNewConstMetric(
+			dnsLookupCount, prometheus.GaugeValue, float64(dnsCount),
+		)
+		ch <- prometheus.MustNewConstMetric(
+			dnsLookupMean, prometheus.GaugeValue, dnsMean,
+		)
+		return true
+	}
 }
 
 func init() {
