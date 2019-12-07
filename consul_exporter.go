@@ -502,6 +502,10 @@ func main() {
              </body>
              </html>`))
 	})
+	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, "Consul Exporter is Healthy.\n")
+	})
 
 	level.Info(logger).Log("msg", "Listening on address", "address", *listenAddress)
 	if err := http.ListenAndServe(*listenAddress, nil); err != nil {
