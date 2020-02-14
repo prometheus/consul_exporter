@@ -40,18 +40,18 @@ workflows:
   prometheus:
     jobs:
     - test:
-        name: test-1.5
+        name: test-penultimate
         exec:
           name: test
-          consul_version: "1.5"
+          consul_version: "1.6"
         filters:
           tags:
             only: /.*/
     - test:
-        name: test-1.6
+        name: test-latest
         exec:
           name: test
-          consul_version: "1.6"
+          consul_version: "1.7"
         filters:
           tags:
             only: /.*/
@@ -63,8 +63,8 @@ workflows:
     - prometheus/publish_master:
         context: org-context
         requires:
-        - test-1.5
-        - test-1.6
+        - test-penultimate
+        - test-latest
         - build
         filters:
           branches:
@@ -72,8 +72,8 @@ workflows:
     - prometheus/publish_release:
         context: org-context
         requires:
-        - test-1.5
-        - test-1.6
+        - test-penultimate
+        - test-latest
         - build
         filters:
           tags:
