@@ -139,6 +139,28 @@ consul_catalog_services 3
 				},
 			},
 		},
+		{
+			name: "collect with service check name",
+			metrics: `# HELP consul_catalog_service_node_healthy Is this service healthy on this node?
+# TYPE consul_service_checks gauge
+consul_service_checks{service_id="special",service_name="special",check_id="_nomad-check-special",check_name="friendly-name"} 1
+# HELP consul_service_checks How many services are in the cluster.
+# TYPE consul_catalog_services gauge
+consul_service_checks 1
+`,
+			services: []*consul_api.AgentServiceRegistration{
+				&consul_api.AgentServiceRegistration{
+					ID:   "special",
+					Name: "special",
+					Checks: []*consul_api.AgentServiceCheck{
+						&consul_api.AgentServiceCheck{
+							CheckID: "_nomad-check-special",
+							Name:    "friendly-name",
+						},
+					},
+				},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			exporter, err := NewExporter(consulOpts{uri: addr, timeout: time.Duration(time.Second)}, "", "", true, log.NewNopLogger())
