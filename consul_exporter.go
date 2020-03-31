@@ -95,7 +95,7 @@ var (
 	)
 	serviceCheckNames = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "service_checks"),
-		"Link the service id and check name if available",
+		"Link the service id and check name if available.",
 		[]string{"service_id", "service_name", "check_id", "check_name"}, nil,
 	)
 	keyValues = prometheus.NewDesc(
@@ -199,6 +199,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- serviceChecks
 	ch <- keyValues
 	ch <- serviceTag
+	ch <- serviceCheckNames
 }
 
 // Collect fetches the stats from configured Consul location and delivers them

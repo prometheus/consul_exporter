@@ -141,9 +141,9 @@ consul_catalog_services 3
 		},
 		{
 			name: "collect with service check name",
-			metrics: `# HELP consul_service_checks Is there a service with a check name?
+			metrics: `# HELP consul_service_checks Link the service id and check name if available.
 # TYPE consul_service_checks gauge
-consul_service_checks{service_id="special",service_name="special",check_id="_nomad-check-special",check_name="friendly-name"} 1
+consul_service_checks{check_id="_nomad-check-special",check_name="friendly-name",service_id="special",service_name="special"} 1
 `,
 			services: []*consul_api.AgentServiceRegistration{
 				&consul_api.AgentServiceRegistration{
@@ -151,8 +151,11 @@ consul_service_checks{service_id="special",service_name="special",check_id="_nom
 					Name: "special",
 					Checks: []*consul_api.AgentServiceCheck{
 						&consul_api.AgentServiceCheck{
-							CheckID: "_nomad-check-special",
-							Name:    "friendly-name",
+							CheckID:  "_nomad-check-special",
+							Name:     "friendly-name",
+							TCP:      "localhost:8080",
+							Timeout:  "30s",
+							Interval: "10s",
 						},
 					},
 				},
