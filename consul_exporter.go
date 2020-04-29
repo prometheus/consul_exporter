@@ -93,6 +93,11 @@ var (
 		"Status of health checks associated with a service.",
 		[]string{"check", "node", "service_id", "service_name", "status"}, nil,
 	)
+	serviceCheckNames = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "service_checks"),
+		"Link the service id and check name if available.",
+		[]string{"service_id", "service_name", "check_id", "check_name"}, nil,
+	)
 	keyValues = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_kv"),
 		"The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted.",
@@ -194,6 +199,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- serviceChecks
 	ch <- keyValues
 	ch <- serviceTag
+	ch <- serviceCheckNames
 }
 
 // Collect fetches the stats from configured Consul location and delivers them
@@ -336,6 +342,9 @@ func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 			)
 			ch <- prometheus.MustNewConstMetric(
 				serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthMaint,
+			)
+			ch <- prometheus.MustNewConstMetric(
+				serviceCheckNames, prometheus.GaugeValue, 1, hc.ServiceID, hc.ServiceName, hc.CheckID, hc.Name,
 			)
 		}
 	}

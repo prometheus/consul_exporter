@@ -15,17 +15,18 @@ make
 
 ## Exported Metrics
 
-| Metric | Meaning | Labels |
-| ------ | ------- | ------ |
-| consul_up | Was the last query of Consul successful | |
-| consul_raft_peers | How many peers (servers) are in the Raft cluster | |
-| consul_serf_lan_members | How many members are in the cluster | |
-| consul_serf_lan_member_status | Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed. | member |
-| consul_catalog_services | How many services are in the cluster | |
-| consul_catalog_service_node_healthy | Is this service healthy on this node | service, node |
-| consul_health_node_status | Status of health checks associated with a node | check, node, status |
-| consul_health_service_status | Status of health checks associated with a service | check, node, service, status |
-| consul_catalog_kv | The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted | key |
+| Metric                              | Meaning                                                                                              | Labels                                        |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| consul_up                           | Was the last query of Consul successful                                                              |                                               |
+| consul_raft_peers                   | How many peers (servers) are in the Raft cluster                                                     |                                               |
+| consul_serf_lan_members             | How many members are in the cluster                                                                  |                                               |
+| consul_serf_lan_member_status       | Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.                               | member                                        |
+| consul_catalog_services             | How many services are in the cluster                                                                 |                                               |
+| consul_catalog_service_node_healthy | Is this service healthy on this node                                                                 | service, node                                 |
+| consul_health_node_status           | Status of health checks associated with a node                                                       | check, node, status                           |
+| consul_health_service_status        | Status of health checks associated with a service                                                    | check, node, service, status                  |
+| consul_catalog_kv                   | The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted | key                                           |
+| consul_service_checks               | Link the Consul service ID with check name if available                                              | service_id,service_name, check_id, check_name |
 
 ### Flags
 
