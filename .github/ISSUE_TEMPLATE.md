@@ -23,13 +23,17 @@
 
 	insert output of `uname -srm` here
 
-* consule_exporter version:
+* consul_exporter version:
 
 	insert output of `consul_exporter --version` here
 
+* Consul version:
+
+	insert output of `consul --version` here
+
 * Prometheus version:
 
-	insert output of `prometheus -version` here (if relevant to the issue)
+	insert output of `prometheus --version` here (if relevant to the issue)
 
 * Prometheus configuration file:
 ```
