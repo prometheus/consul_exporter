@@ -34,6 +34,8 @@ jobs:
     - run: git diff --exit-code
     - prometheus/store_artifact:
         file: consul_exporter
+    - store_test_results:
+        path: test-results
 
 workflows:
   version: 2
