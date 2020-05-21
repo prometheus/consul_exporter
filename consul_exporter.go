@@ -96,7 +96,7 @@ var (
 	serviceCheckNames = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "service_checks"),
 		"Link the service id and check name if available.",
-		[]string{"service_id", "service_name", "check_id", "check_name"}, nil,
+		[]string{"service_id", "service_name", "check_id", "check_name", "node"}, nil,
 	)
 	keyValues = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_kv"),
@@ -352,7 +352,7 @@ func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 				serviceChecks, prometheus.GaugeValue, maintenance, hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, consul_api.HealthMaint,
 			)
 			ch <- prometheus.MustNewConstMetric(
-				serviceCheckNames, prometheus.GaugeValue, 1, hc.ServiceID, hc.ServiceName, hc.CheckID, hc.Name,
+				serviceCheckNames, prometheus.GaugeValue, 1, hc.ServiceID, hc.ServiceName, hc.CheckID, hc.Name, hc.Node,
 			)
 		}
 	}

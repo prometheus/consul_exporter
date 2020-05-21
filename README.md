@@ -26,7 +26,7 @@ make
 | consul_health_node_status           | Status of health checks associated with a node                                                       | check, node, status                           |
 | consul_health_service_status        | Status of health checks associated with a service                                                    | check, node, service, status                  |
 | consul_catalog_kv                   | The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted | key                                           |
-| consul_service_checks               | Link the Consul service ID with check name if available                                              | service_id,service_name, check_id, check_name |
+| consul_service_checks               | Link the Consul service ID with check name if available                                              | service_id,service_name, check_id, check_name, node |
 
 ### Flags
 
