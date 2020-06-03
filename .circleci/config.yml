@@ -2,7 +2,7 @@
 version: 2.1
 
 orbs:
-  prometheus: prometheus/prometheus@0.3.0
+  prometheus: prometheus/prometheus@0.8.0
 
 executors:
   test:
