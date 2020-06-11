@@ -1,3 +1,8 @@
+## 0.7.0 / 2020-06-11
+
+* [FEATURE] Add `consul_service_checks` metric to link checks with their services. #162
+* [ENHANCEMENT] Add `--consul.request-limit` flag to limit the maximum number of concurrent requests to Consul. #164
+
 ## 0.6.0 / 2019-12-11
 
 * [CHANGE] Run as a non-root user in the container. #139
