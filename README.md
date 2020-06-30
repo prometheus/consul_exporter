@@ -55,6 +55,8 @@ make
     TLS certificate. It can be used to ensure that the certificate name matches
     the hostname we declare.
 * __`consul.timeout`:__ Timeout on HTTP requests to consul.
+* __`consul.max-connections`:__ Limit the maximum number of concurrent connections
+    to consul, 0 means no limit. Defaults to 16.
 * __`log.format`:__ Set the log target and format. Example: `logger:syslog?appname=bob&local=7`
     or `logger:stdout?json=true`
 * __`log.level`:__ Logging level. `info` by default.
