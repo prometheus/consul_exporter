@@ -45,7 +45,7 @@ workflows:
         name: test-penultimate
         exec:
           name: test
-          consul_version: "1.6"
+          consul_version: "1.7"
         filters:
           tags:
             only: /.*/
@@ -53,7 +53,7 @@ workflows:
         name: test-latest
         exec:
           name: test
-          consul_version: "1.7"
+          consul_version: "1.8"
         filters:
           tags:
             only: /.*/
