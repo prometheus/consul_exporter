@@ -61,9 +61,10 @@ func TestCollect(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name     string
-		metrics  string
-		services []*consul_api.AgentServiceRegistration
+		name         string
+		metrics      string
+		services     []*consul_api.AgentServiceRegistration
+		requestLimit int
 	}{
 		{
 			name: "simple collect",
@@ -161,9 +162,53 @@ consul_service_checks{check_id="_nomad-check-special",check_name="friendly-name"
 				},
 			},
 		},
+		{
+			name: "collect many services with few requests",
+			metrics: `# HELP consul_catalog_service_node_healthy Is this service healthy on this node?
+# TYPE consul_catalog_service_node_healthy gauge
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="bar",service_name="bar"} 1
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="consul",service_name="consul"} 1
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="foo",service_name="foo"} 1
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="foobar",service_name="foobar"} 1
+# HELP consul_catalog_services How many services are in the cluster.
+# TYPE consul_catalog_services gauge
+consul_catalog_services 4
+# HELP consul_service_tag Tags of a service.
+# TYPE consul_service_tag gauge
+consul_service_tag{node="{{ .Node }}",service_id="bar",tag="tag1"} 1
+consul_service_tag{node="{{ .Node }}",service_id="bar",tag="tag2"} 1
+consul_service_tag{node="{{ .Node }}",service_id="foo",tag="tag1"} 1
+consul_service_tag{node="{{ .Node }}",service_id="foo",tag="tag2"} 1
+consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag1"} 1
+consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag2"} 1
+`,
+			requestLimit: 1,
+			services: []*consul_api.AgentServiceRegistration{
+				&consul_api.AgentServiceRegistration{
+					ID:   "foo",
+					Name: "foo",
+					Tags: []string{"tag1", "tag2", "tag1"},
+				},
+				&consul_api.AgentServiceRegistration{
+					ID:   "bar",
+					Name: "bar",
+					Tags: []string{"tag1", "tag2", "tag1"},
+				},
+				&consul_api.AgentServiceRegistration{
+					ID:   "foobar",
+					Name: "foobar",
+					Tags: []string{"tag1", "tag2", "tag1"},
+				},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			exporter, err := NewExporter(consulOpts{uri: addr, timeout: time.Duration(time.Second)}, "", "", true, log.NewNopLogger())
+			exporter, err := NewExporter(
+				consulOpts{
+					uri:          addr,
+					timeout:      time.Duration(time.Second),
+					requestLimit: tc.requestLimit,
+				}, "", "", true, log.NewNopLogger())
 			if err != nil {
 				t.Errorf("expected no error but got %q", err)
 			}
