@@ -362,7 +362,7 @@ func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 // collectHealthSummary collects health information about every node+service
 // combination. It will cause one lookup query per service.
 func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceNames map[string][]string) bool {
-	ok := make(chan bool)
+	ok := make(chan bool, len(serviceNames))
 
 	for s := range serviceNames {
 		if e.requestLimitChan != nil {
