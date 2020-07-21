@@ -365,15 +365,13 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 	ok := make(chan bool)
 
 	for s := range serviceNames {
-		if e.requestLimitChan != nil {
-			e.requestLimitChan <- struct{}{}
-		}
 		go func(s string) {
-			defer func() {
-				if e.requestLimitChan != nil {
+			if e.requestLimitChan != nil {
+				e.requestLimitChan <- struct{}{}
+				defer func() {
 					<-e.requestLimitChan
-				}
-			}()
+				}()
+			}
 			ok <- e.collectOneHealthSummary(ch, s)
 		}(s)
 	}
