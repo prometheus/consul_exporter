@@ -1,3 +1,7 @@
+## 0.7.1 / 2020-07-21
+
+* [BUGFIX] Fix /metrics hanging when `--consul.request-limit` is lower than the number of services in Consul. #179
+
 ## 0.7.0 / 2020-06-11
 
 * [FEATURE] Add `consul_service_checks` metric to link checks with their services. #162
