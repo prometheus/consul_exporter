@@ -101,7 +101,7 @@ You can query for the following health check states: "maintenance", "critical", 
 
 ## Using Docker
 
-You can deploy this exporter using the [prom/consul-exporter](https://registry.hub.docker.com/u/prom/consul-exporter/) Docker image.
+You can deploy this exporter using the [prom/consul-exporter](https://registry.hub.docker.com/r/prom/consul-exporter) Docker image.
 
 For example:
 
