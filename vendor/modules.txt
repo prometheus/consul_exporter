@@ -22,7 +22,7 @@ github.com/golang/protobuf/ptypes
 github.com/golang/protobuf/ptypes/any
 github.com/golang/protobuf/ptypes/duration
 github.com/golang/protobuf/ptypes/timestamp
-# github.com/hashicorp/consul/api v1.5.0
+# github.com/hashicorp/consul/api v1.7.0
 github.com/hashicorp/consul/api
 # github.com/hashicorp/go-cleanhttp v0.5.1
 github.com/hashicorp/go-cleanhttp
@@ -34,9 +34,9 @@ github.com/hashicorp/go-immutable-radix
 github.com/hashicorp/go-rootcerts
 # github.com/hashicorp/golang-lru v0.5.1
 github.com/hashicorp/golang-lru/simplelru
-# github.com/hashicorp/serf v0.9.0
+# github.com/hashicorp/serf v0.9.3
 github.com/hashicorp/serf/coordinate
-# github.com/mattn/go-colorable v0.1.4
+# github.com/mattn/go-colorable v0.1.6
 github.com/mattn/go-colorable
 # github.com/mattn/go-isatty v0.0.12
 github.com/mattn/go-isatty
