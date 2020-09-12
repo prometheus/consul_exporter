@@ -3,3 +3,4 @@
 /.tarballs
 /consul_exporter
 *.tar.gz
+/vendor
