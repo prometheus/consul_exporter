@@ -58,6 +58,26 @@ var (
 		"Does Raft cluster have a leader (according to this node).",
 		nil, nil,
 	)
+	operatorAutopilotVoter = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "operator_autopilot_health_voter"),
+		"If a server is a voter or not.",
+		[]string{"server_id", "server_name", "server_address", "server_version"}, nil,
+	)
+	operatorAutopilotHealthy = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "operator_autopilot_health_healthy"),
+		"If a server is healthy or not (according to raft autopilot).",
+		[]string{"server_id", "server_name", "server_address", "server_version"}, nil,
+	)
+	operatorAutopilotLastIndex = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "operator_autopilot_health_last_index"),
+		"The last known raft index a server has replayed.",
+		[]string{"server_id", "server_name", "server_address", "server_version"}, nil,
+	)
+	operatorAutopilotLastTerm = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "operator_autopilot_health_last_term"),
+		"The last known voting index a server has seen/sent.",
+		[]string{"server_id", "server_name", "server_address", "server_version"}, nil,
+	)
 	nodeCount = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_members"),
 		"How many members are in the cluster.",
@@ -121,6 +141,7 @@ type Exporter struct {
 	kvPrefix         string
 	kvFilter         *regexp.Regexp
 	healthSummary    bool
+	operatorHealth   bool
 	logger           log.Logger
 	requestLimitChan chan struct{}
 }
@@ -137,7 +158,7 @@ type consulOpts struct {
 }
 
 // NewExporter returns an initialized Exporter.
-func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool, logger log.Logger) (*Exporter, error) {
+func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool, operatorHealth bool, logger log.Logger) (*Exporter, error) {
 	uri := opts.uri
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
@@ -188,6 +209,7 @@ func NewExporter(opts consulOpts, kvPrefix, kvFilter string, healthSummary bool,
 		kvPrefix:         kvPrefix,
 		kvFilter:         regexp.MustCompile(kvFilter),
 		healthSummary:    healthSummary,
+		operatorHealth:   operatorHealth,
 		logger:           logger,
 		requestLimitChan: requestLimitChan,
 	}, nil
@@ -199,6 +221,10 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
 	ch <- clusterServers
 	ch <- clusterLeader
+	ch <- operatorAutopilotHealthy
+	ch <- operatorAutopilotLastIndex
+	ch <- operatorAutopilotLastTerm
+	ch <- operatorAutopilotVoter
 	ch <- nodeCount
 	ch <- memberStatus
 	ch <- serviceCount
@@ -215,6 +241,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ok := e.collectPeersMetric(ch)
 	ok = e.collectLeaderMetric(ch) && ok
+	ok = e.collectOperatorAutopilotServerHealthMetric(ch) && ok
 	ok = e.collectNodesMetric(ch) && ok
 	ok = e.collectMembersMetric(ch) && ok
 	ok = e.collectServicesMetric(ch) && ok
@@ -257,6 +284,40 @@ func (e *Exporter) collectLeaderMetric(ch chan<- prometheus.Metric) bool {
 	} else {
 		ch <- prometheus.MustNewConstMetric(
 			clusterLeader, prometheus.GaugeValue, 1,
+		)
+	}
+	return true
+}
+
+func (e *Exporter) collectOperatorAutopilotServerHealthMetric(ch chan<- prometheus.Metric) bool {
+	if !e.operatorHealth {
+		return true
+	}
+	clusterHealth, err := e.client.Operator().AutopilotServerHealth(&queryOptions)
+	if err != nil {
+		level.Error(e.logger).Log("msg", "Failed to get autopilot server health", "err", err)
+		return false
+	}
+	for _, server := range clusterHealth.Servers {
+		ch <- prometheus.MustNewConstMetric(
+			operatorAutopilotLastIndex, prometheus.CounterValue, float64(server.LastIndex), server.ID, server.Name, server.Address, server.Version,
+		)
+		ch <- prometheus.MustNewConstMetric(
+			operatorAutopilotLastTerm, prometheus.CounterValue, float64(server.LastTerm), server.ID, server.Name, server.Address, server.Version,
+		)
+		server_health := 0.0
+		if server.Healthy {
+			server_health = 1.0
+		}
+		ch <- prometheus.MustNewConstMetric(
+			operatorAutopilotHealthy, prometheus.CounterValue, server_health, server.ID, server.Name, server.Address, server.Version,
+		)
+		server_voter := 0.0
+		if server.Voter {
+			server_voter = 1.0
+		}
+		ch <- prometheus.MustNewConstMetric(
+			operatorAutopilotVoter, prometheus.CounterValue, server_voter, server.ID, server.Name, server.Address, server.Version,
 		)
 	}
 	return true
@@ -456,11 +517,12 @@ func init() {
 
 func main() {
 	var (
-		listenAddress = kingpin.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":9107").String()
-		metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
-		healthSummary = kingpin.Flag("consul.health-summary", "Generate a health summary for each service instance. Needs n+1 queries to collect all information.").Default("true").Bool()
-		kvPrefix      = kingpin.Flag("kv.prefix", "Prefix from which to expose key/value pairs.").Default("").String()
-		kvFilter      = kingpin.Flag("kv.filter", "Regex that determines which keys to expose.").Default(".*").String()
+		listenAddress  = kingpin.Flag("web.listen-address", "Address to listen on for web interface and telemetry.").Default(":9107").String()
+		metricsPath    = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
+		healthSummary  = kingpin.Flag("consul.health-summary", "Generate a health summary for each service instance. Needs n+1 queries to collect all information.").Default("true").Bool()
+		kvPrefix       = kingpin.Flag("kv.prefix", "Prefix from which to expose key/value pairs.").Default("").String()
+		kvFilter       = kingpin.Flag("kv.filter", "Regex that determines which keys to expose.").Default(".*").String()
+		operatorHealth = kingpin.Flag("operator.autopilot-server-health", "Collect all operator autopilot server health").Default("false").Bool()
 
 		opts = consulOpts{}
 	)
@@ -486,7 +548,7 @@ func main() {
 	level.Info(logger).Log("msg", "Starting consul_exporter", "version", version.Info())
 	level.Info(logger).Log("build_context", version.BuildContext())
 
-	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary, logger)
+	exporter, err := NewExporter(opts, *kvPrefix, *kvFilter, *healthSummary, *operatorHealth, logger)
 	if err != nil {
 		level.Error(logger).Log("msg", "Error creating the exporter", "err", err)
 		os.Exit(1)
