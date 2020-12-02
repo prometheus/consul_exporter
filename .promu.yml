@@ -5,6 +5,9 @@ go:
 repository:
     path: github.com/prometheus/consul_exporter
 build:
+    binaries:
+      - name: consul_exporter
+        path: ./cmd/consul_exporter
     flags: -a -tags netgo
     ldflags: |
         -X github.com/prometheus/common/version.Version={{.Version}}

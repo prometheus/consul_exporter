@@ -11,7 +11,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package main
+package exporter
 
 import (
 	"bytes"
@@ -40,7 +40,7 @@ func TestNewExporter(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		_, err := NewExporter(consulOpts{uri: test.uri}, "", ".*", true, log.NewNopLogger())
+		_, err := New(ConsulOpts{URI: test.uri}, consul_api.QueryOptions{}, "", ".*", true, log.NewNopLogger())
 		if test.ok && err != nil {
 			t.Errorf("expected no error w/ %q, but got %q", test.uri, err)
 		}
@@ -203,12 +203,12 @@ consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag2"} 1
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			exporter, err := NewExporter(
-				consulOpts{
-					uri:          addr,
-					timeout:      time.Duration(time.Second),
-					requestLimit: tc.requestLimit,
-				}, "", "", true, log.NewNopLogger())
+			exporter, err := New(
+				ConsulOpts{
+					URI:          addr,
+					Timeout:      time.Duration(time.Second),
+					RequestLimit: tc.requestLimit,
+				}, consul_api.QueryOptions{}, "", "", true, log.NewNopLogger())
 			if err != nil {
 				t.Errorf("expected no error but got %q", err)
 			}
