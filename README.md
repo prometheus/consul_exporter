@@ -47,6 +47,7 @@ make
     only for services which have a health check configured. Defaults to true.
 * __`consul.key-file`:__ File path to a PEM-encoded private key used with the
     certificate to verify the exporter's authenticity.
+* __`consul.insecure`:__ Disable TLS host verification.
 * __`consul.require_consistent`:__ Forces the read to be fully consistent.
 * __`consul.server`:__ Address (host and port) of the Consul instance we should
     connect to. This could be a local agent (`localhost:8500`, for instance), or
@@ -55,10 +56,10 @@ make
     TLS certificate. It can be used to ensure that the certificate name matches
     the hostname we declare.
 * __`consul.timeout`:__ Timeout on HTTP requests to consul.
+* __`consul.request-limit`:__ Limit the maximum number of concurrent requests to consul, 0 means no limit.
 * __`log.format`:__ Set the log target and format. Example: `logger:syslog?appname=bob&local=7`
     or `logger:stdout?json=true`
 * __`log.level`:__ Logging level. `info` by default.
-* __`version`:__ Show application version.
 * __`web.listen-address`:__ Address to listen on for web interface and telemetry.
 * __`web.telemetry-path`:__ Path under which to expose metrics.
 
