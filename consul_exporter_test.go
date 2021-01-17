@@ -40,7 +40,7 @@ func TestNewExporter(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		_, err := NewExporter(consulOpts{uri: test.uri}, "", ".*", true, log.NewNopLogger())
+		_, err := NewExporter(consulOpts{uri: test.uri}, "", ".*", true, true, log.NewNopLogger())
 		if test.ok && err != nil {
 			t.Errorf("expected no error w/ %q, but got %q", test.uri, err)
 		}
@@ -208,7 +208,7 @@ consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag2"} 1
 					uri:          addr,
 					timeout:      time.Duration(time.Second),
 					requestLimit: tc.requestLimit,
-				}, "", "", true, log.NewNopLogger())
+				}, "", "", true, true, log.NewNopLogger())
 			if err != nil {
 				t.Errorf("expected no error but got %q", err)
 			}

@@ -19,6 +19,10 @@ make
 | ----------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------- |
 | consul_up                           | Was the last query of Consul successful                                                              |                                               |
 | consul_raft_peers                   | How many peers (servers) are in the Raft cluster                                                     |                                               |
+| consul_operator_autopilot_health_voter | If a server is a voter or not                                                                     | server_id, server_name, server_address, server_version |                                   
+| consul_operator_autopilot_health_healthy | If a server is healthy or not (according to Raft Autopilot)                                     | server_id, server_name, server_address, server_version |     
+| consul_operator_autopilot_health_last_index | The last known raft index a server has replayed                                              | server_id, server_name, server_address, server_version |     
+| consul_operator_autopilot_health_last_term | The last known voting index a server has seen/sent                                            | server_id, server_name, server_address, server_version |     
 | consul_serf_lan_members             | How many members are in the cluster                                                                  |                                               |
 | consul_serf_lan_member_status       | Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.                               | member                                        |
 | consul_catalog_services             | How many services are in the cluster                                                                 |                                               |
@@ -75,6 +79,16 @@ against the actual value found via monitoring.
 A prefix must be supplied to activate this feature. Pass `/` if you want to
 search the entire keyspace.
 
+#### Operator Autopilot Server Health
+
+This exporter allows gathering low-level server metrics through the 
+Operator APIs Autopilot Health endpoint.  This is a greatly elevated 
+endpoint that requires `operator:read`, and so should only be used 
+with a restricted ACL in a trusted fashion.
+
+* __`operator.autopilot-server-health`:__ Collects low-level server metrics
+    from the v1/operator/autopilot/health endpoint.
+
 ### Environment variables
 
 The consul\_exporter supports all environment variables provided by the official
@@ -98,6 +112,10 @@ __What service checks are critical?__
     consul_health_service_status{status="critical"} == 1
 
 You can query for the following health check states: "maintenance", "critical", "warning" or "passing"
+
+__Which servers are often lagging behind the cluster?__
+
+    avg(consul_operator_autopilot_health_healthy) by (server_name)
 
 ## Using Docker
 
