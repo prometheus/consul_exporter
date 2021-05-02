@@ -71,6 +71,11 @@ var (
 		"Tags of a service.",
 		[]string{"service_id", "node", "tag"}, nil,
 	)
+	serviceMeta = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "service_meta"),
+		"Meta of a service.",
+		[]string{"service_id", "node", "key", "value"}, nil,
+	)
 	serviceNodesHealthy = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_service_node_healthy"),
 		"Is this service healthy on this node?",
@@ -105,6 +110,7 @@ type Exporter struct {
 	queryOptions     consul_api.QueryOptions
 	kvPrefix         string
 	kvFilter         *regexp.Regexp
+	metaFilter       *regexp.Regexp
 	healthSummary    bool
 	logger           log.Logger
 	requestLimitChan chan struct{}
@@ -123,7 +129,7 @@ type ConsulOpts struct {
 }
 
 // New returns an initialized Exporter.
-func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilter string, healthSummary bool, logger log.Logger) (*Exporter, error) {
+func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilter string, metaFilter string, healthSummary bool, logger log.Logger) (*Exporter, error) {
 	uri := opts.URI
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
@@ -174,6 +180,7 @@ func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilt
 		queryOptions:     queryOptions,
 		kvPrefix:         kvPrefix,
 		kvFilter:         regexp.MustCompile(kvFilter),
+		metaFilter:       regexp.MustCompile(metaFilter),
 		healthSummary:    healthSummary,
 		logger:           logger,
 		requestLimitChan: requestLimitChan,
@@ -407,6 +414,14 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 			}
 			ch <- prometheus.MustNewConstMetric(serviceTag, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, tag)
 			tags[tag] = struct{}{}
+		}
+
+		if e.metaFilter.String() != "" {
+			for key, val := range entry.Service.Meta {
+				if e.metaFilter.MatchString(key) {
+					ch <- prometheus.MustNewConstMetric(serviceMeta, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, key, val)
+				}
+			}
 		}
 	}
 	return true
