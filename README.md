@@ -119,6 +119,13 @@ docker run -d -p 9107:9107 --dns=172.17.0.1 --dns-search=service.consul \
         prom/consul-exporter --consul.server=consul:8500
 ```
 
+### TLS and basic authentication
+
+The consul\_exporter supports TLS and basic authentication.
+To use TLS and/or basic authentication, you need to pass a configuration file
+using the `--web.config.file` parameter. The format of the file is described
+[in the exporter-toolkit repository](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md).
+
 [circleci]: https://circleci.com/gh/prometheus/consul_exporter
 [hub]: https://hub.docker.com/r/prom/consul-exporter/
 [quay]: https://quay.io/repository/prometheus/consul-exporter
