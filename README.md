@@ -45,6 +45,7 @@ make
     Consul API queries to gather all information about each service. Health check
     information are available via `consul_health_service_status` as well, but
     only for services which have a health check configured. Defaults to true.
+    Disable using `--no-consul.heatlh-summary`.
 * __`consul.key-file`:__ File path to a PEM-encoded private key used with the
     certificate to verify the exporter's authenticity.
 * __`consul.insecure`:__ Disable TLS host verification.
