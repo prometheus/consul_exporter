@@ -61,6 +61,11 @@ var (
 		"Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.",
 		[]string{"member"}, nil,
 	)
+	memberWanStatus = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "serf_wan_member_status"),
+		"Status of member in the wan cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.",
+		[]string{"member", "dc"}, nil,
+	)
 	serviceCount = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_services"),
 		"How many services are in the cluster.",
@@ -188,6 +193,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- clusterLeader
 	ch <- nodeCount
 	ch <- memberStatus
+	ch <- memberWanStatus
 	ch <- serviceCount
 	ch <- serviceNodesHealthy
 	ch <- nodeChecks
@@ -204,6 +210,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	ok = e.collectLeaderMetric(ch) && ok
 	ok = e.collectNodesMetric(ch) && ok
 	ok = e.collectMembersMetric(ch) && ok
+	ok = e.collectMembersWanMetric(ch) && ok
 	ok = e.collectServicesMetric(ch) && ok
 	ok = e.collectHealthStateMetric(ch) && ok
 	ok = e.collectKeyValues(ch) && ok
@@ -270,6 +277,20 @@ func (e *Exporter) collectMembersMetric(ch chan<- prometheus.Metric) bool {
 	for _, entry := range members {
 		ch <- prometheus.MustNewConstMetric(
 			memberStatus, prometheus.GaugeValue, float64(entry.Status), entry.Name,
+		)
+	}
+	return true
+}
+
+func (e *Exporter) collectMembersWanMetric(ch chan<- prometheus.Metric) bool {
+	members, err := e.client.Agent().Members(true)
+	if err != nil {
+		level.Error(e.logger).Log("msg", "Failed to query wan member status", "err", err)
+		return false
+	}
+	for _, entry := range members {
+		ch <- prometheus.MustNewConstMetric(
+			memberWanStatus, prometheus.GaugeValue, float64(entry.Status), entry.Name, entry.Tags["dc"],
 		)
 	}
 	return true
