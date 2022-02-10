@@ -1,3 +1,8 @@
+## 0.8.0 / 2022-02-07
+
+* [FEATURE] Enable TLS/basic authentication #205
+* [FEATURE] Add metric to collect wan status #212
+
 ## 0.7.1 / 2020-07-21
 
 * [BUGFIX] Fix /metrics hanging when `--consul.request-limit` is lower than the number of services in Consul. #179
