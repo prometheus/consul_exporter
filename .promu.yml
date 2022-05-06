@@ -1,13 +1,13 @@
 go:
     # Whenever the Go version is updated here, .circle/config.yml should also
     # be updated.
-    version: 1.17
+    version: 1.18
 repository:
     path: github.com/prometheus/consul_exporter
 build:
     binaries:
-      - name: consul_exporter
-        path: ./cmd/consul_exporter
+        - name: consul_exporter
+          path: ./cmd/consul_exporter
     flags: -a -tags netgo
     ldflags: |
         -X github.com/prometheus/common/version.Version={{.Version}}
