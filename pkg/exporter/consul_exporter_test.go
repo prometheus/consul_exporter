@@ -88,7 +88,7 @@ consul_raft_leader 1
 consul_raft_peers 1
 # HELP consul_serf_lan_member_status Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.
 # TYPE consul_serf_lan_member_status gauge
-consul_serf_lan_member_status{member="{{ .Node }}"} 1
+consul_serf_lan_member_status{build="1.8.19",member="{{ .Node }}"} 1
 # HELP consul_serf_lan_members How many members are in the cluster.
 # TYPE consul_serf_lan_members gauge
 consul_serf_lan_members 1
