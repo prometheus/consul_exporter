@@ -59,12 +59,12 @@ var (
 	memberStatus = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_member_status"),
 		"Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.",
-		[]string{"member"}, nil,
+		[]string{"member", "build"}, nil,
 	)
 	memberWanStatus = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_wan_member_status"),
 		"Status of member in the wan cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.",
-		[]string{"member", "dc"}, nil,
+		[]string{"member", "dc", "build"}, nil,
 	)
 	serviceCount = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_services"),
@@ -275,8 +275,10 @@ func (e *Exporter) collectMembersMetric(ch chan<- prometheus.Metric) bool {
 		return false
 	}
 	for _, entry := range members {
+		build := strings.Split(entry.Tags["build"], ":")[0]
 		ch <- prometheus.MustNewConstMetric(
-			memberStatus, prometheus.GaugeValue, float64(entry.Status), entry.Name,
+			memberStatus, prometheus.GaugeValue, float64(entry.Status),
+			entry.Name, build,
 		)
 	}
 	return true
@@ -289,8 +291,10 @@ func (e *Exporter) collectMembersWanMetric(ch chan<- prometheus.Metric) bool {
 		return false
 	}
 	for _, entry := range members {
+		build := strings.Split(entry.Tags["build"], ":")[0]
 		ch <- prometheus.MustNewConstMetric(
-			memberWanStatus, prometheus.GaugeValue, float64(entry.Status), entry.Name, entry.Tags["dc"],
+			memberWanStatus, prometheus.GaugeValue, float64(entry.Status),
+			entry.Name, entry.Tags["dc"], build,
 		)
 	}
 	return true
