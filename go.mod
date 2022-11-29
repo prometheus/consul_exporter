@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/go-kit/log v0.2.1
-	github.com/hashicorp/consul/api v1.15.2
+	github.com/hashicorp/consul/api v1.15.3
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/prometheus/client_golang v1.13.0
 	github.com/prometheus/common v0.37.0
