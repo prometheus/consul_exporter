@@ -1,4 +1,4 @@
-## 0.9.0 / 2023-11-29
+## 0.9.0 / 2022-11-29
 
 * [SECURITY] Update Exporter Toolkit (CVE-2022-46146) #250
 * [FEATURE] Support multiple Listen Addresses and systemd socket activation #250
