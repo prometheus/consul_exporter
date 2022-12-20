@@ -65,6 +65,7 @@ make
 * __`log.level`:__ Logging level. `info` by default.
 * __`web.listen-address`:__ Address to listen on for web interface and telemetry.
 * __`web.telemetry-path`:__ Path under which to expose metrics.
+* __`version`:__ Show application version.
 
 #### Key/Value Checks
 
