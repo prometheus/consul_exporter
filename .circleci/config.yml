@@ -1,85 +1,33 @@
 ---
+# Prometheus has switched to GitHub action.
+# Circle CI is not disabled repository-wise so that previous pull requests
+# continue working.
+# This file does not generate any CircleCI workflow.
+
 version: 2.1
 
-orbs:
-  prometheus: prometheus/prometheus@0.16.0
-
 executors:
-  test:
-    parameters:
-      consul_version:
-        type: string
+  golang:
     docker:
-    # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: cimg/go:1.19
-    - image: consul:<< parameters.consul_version >>
-      name: consul
-      environment:
-        CONSUL_LOCAL_CONFIG: '{"node_name":"test"}'
-    environment:
-      CONSUL_SERVER: consul:8500
-      CONSUL_NODE_NAME: test
+      - image: busybox
 
 jobs:
-  test:
-    parameters:
-      exec:
-        type: executor
-
-    executor: << parameters.exec >>
+  noopjob:
+    executor: golang
 
     steps:
-    - prometheus/setup_environment
-    - run: go mod download
-    - run: make
-    - run: git diff --exit-code
-    - prometheus/store_artifact:
-        file: consul_exporter
-    - store_test_results:
-        path: test-results
+      - run:
+          command: "true"
 
 workflows:
   version: 2
   prometheus:
     jobs:
-    - test:
-        name: test-penultimate
-        exec:
-          name: test
-          consul_version: "1.7"
-        filters:
-          tags:
-            only: /.*/
-    - test:
-        name: test-latest
-        exec:
-          name: test
-          consul_version: "1.8"
-        filters:
-          tags:
-            only: /.*/
-    - prometheus/build:
-        name: build
-        filters:
-          tags:
-            only: /.*/
-    - prometheus/publish_master:
-        context: org-context
-        requires:
-        - test-penultimate
-        - test-latest
-        - build
-        filters:
-          branches:
-            only: master
-    - prometheus/publish_release:
-        context: org-context
-        requires:
-        - test-penultimate
-        - test-latest
-        - build
-        filters:
-          tags:
-            only: /^v[0-9]+(\.[0-9]+){2}(-.+|[^-.]*)$/
-          branches:
-            ignore: /.*/
+      - noopjob
+    triggers:
+      - schedule:
+          cron: "0 0 30 2 *"
+          filters:
+            branches:
+              only:
+                - main

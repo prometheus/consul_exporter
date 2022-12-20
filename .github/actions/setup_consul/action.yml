@@ -1,0 +1,14 @@
+name: Setup consul
+inputs:
+  version:
+    type: string
+    description: Consul version
+runs:
+  using: composite
+  steps:
+    - run: curl -Lo consul.zip https://releases.hashicorp.com/consul/${{ inputs.version }}/consul_${{ inputs.version }}_linux_amd64.zip
+      shell: bash
+    - run: unzip consul.zip
+      shell: bash
+    - run: ./consul agent -dev -node test &
+      shell: bash
