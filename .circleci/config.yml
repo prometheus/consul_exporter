@@ -2,7 +2,7 @@
 version: 2.1
 
 orbs:
-  prometheus: prometheus/prometheus@0.16.0
+  prometheus: prometheus/prometheus@0.17.1
 
 executors:
   test:
@@ -11,7 +11,7 @@ executors:
         type: string
     docker:
     # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: cimg/go:1.19
+    - image: cimg/go:1.20
     - image: consul:<< parameters.consul_version >>
       name: consul
       environment:
