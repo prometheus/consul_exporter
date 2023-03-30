@@ -20,6 +20,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	consul_api "github.com/hashicorp/consul/api"
@@ -31,7 +32,6 @@ import (
 	"github.com/prometheus/consul_exporter/pkg/exporter"
 	"github.com/prometheus/exporter-toolkit/web"
 	webflag "github.com/prometheus/exporter-toolkit/web/kingpinflag"
-	"gopkg.in/alecthomas/kingpin.v2"
 )
 
 type promHTTPLogger struct {
