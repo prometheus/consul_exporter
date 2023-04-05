@@ -207,6 +207,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- serviceChecks
 	ch <- keyValues
 	ch <- serviceTag
+	ch <- serviceMeta
 	ch <- serviceCheckNames
 }
 
@@ -439,6 +440,7 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 
 		for key, val := range entry.Service.Meta {
 			if e.metaFilter.MatchString(key) {
+				level.Debug(e.logger).Log("msg", "outputting meta", key)
 				ch <- prometheus.MustNewConstMetric(serviceMeta, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, key, val)
 			}
 		}
