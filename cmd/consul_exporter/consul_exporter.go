@@ -53,7 +53,7 @@ func main() {
 		healthSummary = kingpin.Flag("consul.health-summary", "Generate a health summary for each service instance. Needs n+1 queries to collect all information.").Default("true").Bool()
 		kvPrefix      = kingpin.Flag("kv.prefix", "Prefix from which to expose key/value pairs.").Default("").String()
 		kvFilter      = kingpin.Flag("kv.filter", "Regex that determines which keys to expose.").Default(".*").String()
-		metaFilter    = kingpin.Flag("meta.filter", "Regex that determines which meta key/values to expose.").Default("").String()
+		metaFilter    = kingpin.Flag("meta.filter", "Regex that determines which meta keys to expose.").Default("^$").String()
 
 		opts         = exporter.ConsulOpts{}
 		queryOptions = consul_api.QueryOptions{}

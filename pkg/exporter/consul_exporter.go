@@ -437,11 +437,9 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 			tags[tag] = struct{}{}
 		}
 
-		if e.metaFilter.String() != "" {
-			for key, val := range entry.Service.Meta {
-				if e.metaFilter.MatchString(key) {
-					ch <- prometheus.MustNewConstMetric(serviceMeta, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, key, val)
-				}
+		for key, val := range entry.Service.Meta {
+			if e.metaFilter.MatchString(key) {
+				ch <- prometheus.MustNewConstMetric(serviceMeta, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, key, val)
 			}
 		}
 	}
