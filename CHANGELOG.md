@@ -1,3 +1,7 @@
+## 0.10.0 / 2023-12-12
+
+* [ENHANCEMENT] Add `--version` flag to print the version (#257)
+
 ## 0.9.0 / 2022-11-29
 
 * [SECURITY] Update Exporter Toolkit (CVE-2022-46146) #250
