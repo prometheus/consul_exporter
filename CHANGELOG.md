@@ -1,4 +1,4 @@
-## 0.10.0 / 2023-12-11
+## 0.10.0 / 2023-12-12
 
 * [ENHANCEMENT] Add `--version` flag to print the version (#257)
 
