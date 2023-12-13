@@ -209,16 +209,13 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect fetches the stats from configured Consul location and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	ok := false
-	if e.agentOnly {
-		ok = e.collectServicesMetric(ch)
-	} else {
-		ok = e.collectPeersMetric(ch)
+	ok := e.collectServicesMetric(ch)
+	if !e.agentOnly {
+		ok = e.collectPeersMetric(ch) && ok
 		ok = e.collectLeaderMetric(ch) && ok
 		ok = e.collectNodesMetric(ch) && ok
 		ok = e.collectMembersMetric(ch) && ok
 		ok = e.collectMembersWanMetric(ch) && ok
-		ok = e.collectServicesMetric(ch) && ok
 		ok = e.collectHealthStateMetric(ch) && ok
 		ok = e.collectKeyValues(ch) && ok
 	}
