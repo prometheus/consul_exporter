@@ -2,16 +2,30 @@
 version: 2.1
 
 orbs:
-  prometheus: prometheus/prometheus@0.16.0
+  prometheus: prometheus/prometheus@0.17.1
 
 executors:
+  golang:
+    docker:
+    # Whenever the Go version is updated here, .promu.yml should also be updated.
+    - image: cimg/go:1.21
+
+jobs:
   test:
+    executor: golang
+    steps:
+    - prometheus/setup_environment
+    - run: make
+    - prometheus/store_artifact:
+        file: consul_exporter
+
+  integration:
     parameters:
       consul_version:
         type: string
     docker:
     # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: cimg/go:1.19
+    - image: cimg/go:1.20
     - image: consul:<< parameters.consul_version >>
       name: consul
       environment:
@@ -20,21 +34,10 @@ executors:
       CONSUL_SERVER: consul:8500
       CONSUL_NODE_NAME: test
 
-jobs:
-  test:
-    parameters:
-      exec:
-        type: executor
-
-    executor: << parameters.exec >>
-
     steps:
     - prometheus/setup_environment
-    - run: go mod download
-    - run: make
+    - run: make test
     - run: git diff --exit-code
-    - prometheus/store_artifact:
-        file: consul_exporter
     - store_test_results:
         path: test-results
 
@@ -43,18 +46,16 @@ workflows:
   prometheus:
     jobs:
     - test:
-        name: test-penultimate
-        exec:
-          name: test
-          consul_version: "1.7"
         filters:
           tags:
             only: /.*/
-    - test:
-        name: test-latest
-        exec:
-          name: test
-          consul_version: "1.8"
+    - integration:
+        matrix:
+          parameters:
+            consul_version:
+            - "1.13"
+            - "1.14"
+            - "1.15"
         filters:
           tags:
             only: /.*/
@@ -66,8 +67,7 @@ workflows:
     - prometheus/publish_master:
         context: org-context
         requires:
-        - test-penultimate
-        - test-latest
+        - test
         - build
         filters:
           branches:
@@ -75,8 +75,7 @@ workflows:
     - prometheus/publish_release:
         context: org-context
         requires:
-        - test-penultimate
-        - test-latest
+        - test
         - build
         filters:
           tags:
