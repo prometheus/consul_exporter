@@ -132,10 +132,10 @@ consul_catalog_services 2
 # TYPE consul_service_tag gauge
 consul_service_tag{node="{{ .Node }}",service_id="foo",tag="tag1"} 1
 consul_service_tag{node="{{ .Node }}",service_id="foo",tag="tag2"} 1
-# HELP consul_service_meta Meta of a service.
-# TYPE consul_service_meta gauge
-consul_service_meta{key="meta_key_1",node="{{ .Node }}",service_id="foo",value="meta_value_1"} 1
-consul_service_meta{key="meta_key_2",node="{{ .Node }}",service_id="foo",value="meta_value_2"} 1
+# HELP consul_service_meta_info Meta of a service.
+# TYPE consul_service_meta_info gauge
+consul_service_meta_info{key="meta_key_1",node="{{ .Node }}",service_id="foo",value="meta_value_1"} 1
+consul_service_meta_info{key="meta_key_2",node="{{ .Node }}",service_id="foo",value="meta_value_2"} 1
 `,
 			services: []*consul_api.AgentServiceRegistration{
 				&consul_api.AgentServiceRegistration{
