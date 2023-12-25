@@ -66,6 +66,7 @@ func main() {
 	kingpin.Flag("consul.timeout", "Timeout on HTTP requests to the Consul API.").Default("500ms").DurationVar(&opts.Timeout)
 	kingpin.Flag("consul.insecure", "Disable TLS host verification.").Default("false").BoolVar(&opts.Insecure)
 	kingpin.Flag("consul.request-limit", "Limit the maximum number of concurrent requests to consul, 0 means no limit.").Default("0").IntVar(&opts.RequestLimit)
+	kingpin.Flag("consul.agent-only", "Only export metrics about services registered on local agent").Default("false").BoolVar(&opts.AgentOnly)
 
 	// Query options.
 	kingpin.Flag("consul.allow_stale", "Allows any Consul server (non-leader) to service a read.").Default("true").BoolVar(&queryOptions.AllowStale)

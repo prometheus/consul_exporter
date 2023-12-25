@@ -117,6 +117,7 @@ type Exporter struct {
 	kvFilter         *regexp.Regexp
 	metaFilter       *regexp.Regexp
 	healthSummary    bool
+	agentOnly        bool
 	logger           log.Logger
 	requestLimitChan chan struct{}
 }
@@ -131,6 +132,7 @@ type ConsulOpts struct {
 	Timeout      time.Duration
 	Insecure     bool
 	RequestLimit int
+	AgentOnly    bool
 }
 
 // New returns an initialized Exporter.
@@ -189,6 +191,7 @@ func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilt
 		healthSummary:    healthSummary,
 		logger:           logger,
 		requestLimitChan: requestLimitChan,
+		agentOnly:        opts.AgentOnly,
 	}, nil
 }
 
@@ -214,14 +217,16 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 // Collect fetches the stats from configured Consul location and delivers them
 // as Prometheus metrics. It implements prometheus.Collector.
 func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
-	ok := e.collectPeersMetric(ch)
-	ok = e.collectLeaderMetric(ch) && ok
-	ok = e.collectNodesMetric(ch) && ok
-	ok = e.collectMembersMetric(ch) && ok
-	ok = e.collectMembersWanMetric(ch) && ok
-	ok = e.collectServicesMetric(ch) && ok
-	ok = e.collectHealthStateMetric(ch) && ok
-	ok = e.collectKeyValues(ch) && ok
+	ok := e.collectServicesMetric(ch)
+	if !e.agentOnly {
+		ok = e.collectPeersMetric(ch) && ok
+		ok = e.collectLeaderMetric(ch) && ok
+		ok = e.collectNodesMetric(ch) && ok
+		ok = e.collectMembersMetric(ch) && ok
+		ok = e.collectMembersWanMetric(ch) && ok
+		ok = e.collectHealthStateMetric(ch) && ok
+		ok = e.collectKeyValues(ch) && ok
+	}
 
 	if ok {
 		ch <- prometheus.MustNewConstMetric(
@@ -305,11 +310,25 @@ func (e *Exporter) collectMembersWanMetric(ch chan<- prometheus.Metric) bool {
 }
 
 func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
-	serviceNames, _, err := e.client.Catalog().Services(&e.queryOptions)
-	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to query for services", "err", err)
-		return false
+	serviceNames := make(map[string][]string)
+	if e.agentOnly {
+		services, err := e.client.Agent().Services()
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Failed to query for agent services", "err", err)
+			return false
+		}
+		for name, srv := range services {
+			serviceNames[name] = srv.Tags
+		}
+	} else {
+		services, _, err := e.client.Catalog().Services(&e.queryOptions)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Failed to query for services", "err", err)
+			return false
+		}
+		serviceNames = services
 	}
+
 	ch <- prometheus.MustNewConstMetric(
 		serviceCount, prometheus.GaugeValue, float64(len(serviceNames)),
 	)
@@ -409,13 +428,33 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 	}
 	level.Debug(e.logger).Log("msg", "Fetching health summary", "serviceName", serviceName)
 
-	service, _, err := e.client.Health().Service(serviceName, "", false, &e.queryOptions)
-	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to query service health", "err", err)
-		return false
+	var serviceEntries []*consul_api.ServiceEntry
+
+	if e.agentOnly {
+		nodeName, err := e.client.Agent().NodeName()
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Failed to query agent node name", "err", err)
+			return false
+		}
+
+		_, agentServices, err := e.client.Agent().AgentHealthServiceByName(serviceName)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Failed to query agent service health", "err", err)
+			return false
+		}
+		for _, agentService := range agentServices {
+			serviceEntries = append(serviceEntries, &consul_api.ServiceEntry{Checks: agentService.Checks, Service: agentService.Service, Node: &consul_api.Node{Node: nodeName}})
+		}
+	} else {
+		service, _, err := e.client.Health().Service(serviceName, "", false, &e.queryOptions)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Failed to query service health", "err", err)
+			return false
+		}
+		serviceEntries = service
 	}
 
-	for _, entry := range service {
+	for _, entry := range serviceEntries {
 		// We have a Node, a Service, and one or more Checks. Our
 		// service-node combo is passing if all checks have a `status`
 		// of "passing."
