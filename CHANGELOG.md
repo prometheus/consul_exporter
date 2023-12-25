@@ -1,3 +1,8 @@
+## 0.11.0 / 2023-12-25
+
+* [FEATURE] Add service meta metrics #264
+* [FEATURE] Add flag for running agent only mode #283
+
 ## 0.10.0 / 2023-12-12
 
 * [ENHANCEMENT] Add `--version` flag to print the version (#257)
