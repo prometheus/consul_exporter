@@ -40,7 +40,7 @@ func TestNewExporter(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		_, err := New(ConsulOpts{URI: test.uri}, consul_api.QueryOptions{}, "", ".*", true, log.NewNopLogger())
+		_, err := New(ConsulOpts{URI: test.uri}, consul_api.QueryOptions{}, "", ".*", "", true, log.NewNopLogger())
 		if test.ok && err != nil {
 			t.Errorf("expected no error w/ %q, but got %q", test.uri, err)
 		}
@@ -116,6 +116,33 @@ consul_service_tag{node="{{ .Node }}",service_id="foo",tag="tag2"} 1
 					ID:   "foo",
 					Name: "foo",
 					Tags: []string{"tag1", "tag2", "tag1"},
+				},
+			},
+		},
+		{
+			name: "collect with service meta values",
+			metrics: `# HELP consul_catalog_service_node_healthy Is this service healthy on this node?
+# TYPE consul_catalog_service_node_healthy gauge
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="consul",service_name="consul"} 1
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="foo",service_name="foo"} 1
+# HELP consul_catalog_services How many services are in the cluster.
+# TYPE consul_catalog_services gauge
+consul_catalog_services 2
+# HELP consul_service_tag Tags of a service.
+# TYPE consul_service_tag gauge
+consul_service_tag{node="{{ .Node }}",service_id="foo",tag="tag1"} 1
+consul_service_tag{node="{{ .Node }}",service_id="foo",tag="tag2"} 1
+# HELP consul_service_meta_info Meta of a service.
+# TYPE consul_service_meta_info gauge
+consul_service_meta_info{key="meta_key_1",node="{{ .Node }}",service_id="foo",value="meta_value_1"} 1
+consul_service_meta_info{key="meta_key_2",node="{{ .Node }}",service_id="foo",value="meta_value_2"} 1
+`,
+			services: []*consul_api.AgentServiceRegistration{
+				&consul_api.AgentServiceRegistration{
+					ID:   "foo",
+					Name: "foo",
+					Tags: []string{"tag1", "tag2", "tag1"},
+					Meta: map[string]string{"meta_key_1": "meta_value_1", "meta_key_2": "meta_value_2"},
 				},
 			},
 		},
@@ -208,7 +235,7 @@ consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag2"} 1
 					URI:          addr,
 					Timeout:      time.Duration(time.Second),
 					RequestLimit: tc.requestLimit,
-				}, consul_api.QueryOptions{}, "", "", true, log.NewNopLogger())
+				}, consul_api.QueryOptions{}, "", "", "meta_.*", true, log.NewNopLogger())
 			if err != nil {
 				t.Errorf("expected no error but got %q", err)
 			}
