@@ -77,7 +77,7 @@ var (
 		[]string{"service_id", "node", "tag"}, nil,
 	)
 	serviceMeta = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "", "service_meta"),
+		prometheus.BuildFQName(namespace, "", "service_meta_info"),
 		"Meta of a service.",
 		[]string{"service_id", "node", "key", "value"}, nil,
 	)
