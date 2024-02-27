@@ -317,8 +317,8 @@ func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
 			level.Error(e.logger).Log("msg", "Failed to query for agent services", "err", err)
 			return false
 		}
-		for name, srv := range services {
-			serviceNames[name] = srv.Tags
+		for _, srv := range services {
+			serviceNames[srv.Service] = srv.Tags
 		}
 	} else {
 		services, _, err := e.client.Catalog().Services(&e.queryOptions)
