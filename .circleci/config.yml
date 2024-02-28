@@ -33,6 +33,7 @@ jobs:
     environment:
       CONSUL_SERVER: consul:8500
       CONSUL_NODE_NAME: test
+      CONSUL_VERSION: << parameters.consul_version >>
 
     steps:
     - prometheus/setup_environment
@@ -53,9 +54,9 @@ workflows:
         matrix:
           parameters:
             consul_version:
-            - "1.13"
-            - "1.14"
-            - "1.15"
+            - "1.13.9"
+            - "1.14.8"
+            - "1.15.4"
         filters:
           tags:
             only: /.*/
