@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/go-kit/log v0.2.1
-	github.com/hashicorp/consul/api v1.26.1
+	github.com/hashicorp/consul/api v1.28.2
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/prometheus/client_golang v1.19.0
 	github.com/prometheus/common v0.48.0
