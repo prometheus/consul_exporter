@@ -25,6 +25,7 @@ import (
 	"github.com/go-kit/log/level"
 	consul_api "github.com/hashicorp/consul/api"
 	"github.com/prometheus/client_golang/prometheus"
+	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
@@ -43,7 +44,7 @@ func (l promHTTPLogger) Println(v ...interface{}) {
 }
 
 func init() {
-	prometheus.MustRegister(version.NewCollector("consul_exporter"))
+	prometheus.MustRegister(versioncollector.NewCollector("consul_exporter"))
 }
 
 func main() {

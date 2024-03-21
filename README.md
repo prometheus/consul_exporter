@@ -38,6 +38,7 @@ make
 ./consul_exporter --help
 ```
 
+* __`consul.agent-only`:__ Only export metrics about services registered on local agent.
 * __`consul.allow_stale`:__ Allows any Consul server (non-leader) to service
     a read.
 * __`consul.ca-file`:__ File path to a PEM-encoded certificate authority used to
