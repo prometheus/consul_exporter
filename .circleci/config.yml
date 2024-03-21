@@ -33,9 +33,12 @@ jobs:
     environment:
       CONSUL_SERVER: consul:8500
       CONSUL_NODE_NAME: test
-      CONSUL_VERSION: << parameters.consul_version >>
 
     steps:
+    - run:
+        command: |
+          echo "CONSUL_VERSION=$(/bin/consul version | awk '$1 == "Consul" {print $2}' | tr -d 'v')" >> $BASH_ENV
+          source $BASH_ENV
     - prometheus/setup_environment
     - run: make test
     - run: git diff --exit-code
@@ -54,9 +57,9 @@ workflows:
         matrix:
           parameters:
             consul_version:
-            - "1.16.6"
-            - "1.17.3"
-            - "1.18.0"
+            - "1.16"
+            - "1.17"
+            - "1.18"
         filters:
           tags:
             only: /.*/
