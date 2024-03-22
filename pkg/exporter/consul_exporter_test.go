@@ -59,6 +59,10 @@ func TestCollect(t *testing.T) {
 	if len(node) == 0 {
 		t.Skipf("CONSUL_NODE_NAME environment variable not set")
 	}
+	version := os.Getenv("CONSUL_VERSION")
+	if len(version) == 0 {
+		t.Skipf("CONSUL_VERSION environment variable not set")
+	}
 
 	for _, tc := range []struct {
 		name         string
@@ -86,6 +90,9 @@ consul_raft_leader 1
 # HELP consul_raft_peers How many peers (servers) are in the Raft cluster.
 # TYPE consul_raft_peers gauge
 consul_raft_peers 1
+# HELP consul_serf_lan_member_info Information of member in the cluster.
+# TYPE consul_serf_lan_member_info gauge
+consul_serf_lan_member_info{member="{{ .Node }}",role="consul",version="{{ .Version }}"} 1
 # HELP consul_serf_lan_member_status Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.
 # TYPE consul_serf_lan_member_status gauge
 consul_serf_lan_member_status{member="{{ .Node }}"} 1
@@ -261,7 +268,7 @@ consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag2"} 1
 			}
 
 			var w bytes.Buffer
-			err = tmpl.Execute(&w, map[string]string{"Node": node})
+			err = tmpl.Execute(&w, map[string]string{"Node": node, "Version": version})
 			if err != nil {
 				t.Errorf("expected no error but got %s", err)
 			}

@@ -35,6 +35,10 @@ jobs:
       CONSUL_NODE_NAME: test
 
     steps:
+    - run:
+        command: |
+          echo "CONSUL_VERSION=$(/bin/consul version | awk '$1 == "Consul" {print $2}' | tr -d 'v')" >> $BASH_ENV
+          source $BASH_ENV
     - prometheus/setup_environment
     - run: make test
     - run: git diff --exit-code
