@@ -8,7 +8,7 @@ require (
 	github.com/hashicorp/consul/api v1.28.2
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/prometheus/client_golang v1.19.0
-	github.com/prometheus/common v0.51.1
+	github.com/prometheus/common v0.52.3
 	github.com/prometheus/exporter-toolkit v0.11.0
 )
 
