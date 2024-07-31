@@ -509,6 +509,10 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 				break
 			}
 		}
+		if entry.Service.Service != serviceName {
+			level.Debug(e.logger).Log("msg", "Skipping service instance because its registered to %s but belongs to %s service registration", entry.Service.Service, serviceName)
+			break
+		}
 		ch <- prometheus.MustNewConstMetric(
 			serviceNodesHealthy, prometheus.GaugeValue, passing, entry.Service.ID, entry.Node.Node, entry.Service.Service,
 		)
