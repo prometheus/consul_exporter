@@ -1,3 +1,7 @@
+## 0.12.1 / 2024-07-31
+
+* [BUGFIX] Fix duplicate services that differ only by casing #321
+
 ## 0.12.0 / 2024-04-14
 
 * [FEATURE] Add metrics for member info #300
