@@ -16,19 +16,18 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
 
 	"github.com/alecthomas/kingpin/v2"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	consul_api "github.com/hashicorp/consul/api"
 	"github.com/prometheus/client_golang/prometheus"
 	versioncollector "github.com/prometheus/client_golang/prometheus/collectors/version"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/promlog"
-	"github.com/prometheus/common/promlog/flag"
+	"github.com/prometheus/common/promslog"
+	"github.com/prometheus/common/promslog/flag"
 	"github.com/prometheus/common/version"
 	"github.com/prometheus/consul_exporter/pkg/exporter"
 	"github.com/prometheus/exporter-toolkit/web"
@@ -36,11 +35,11 @@ import (
 )
 
 type promHTTPLogger struct {
-	logger log.Logger
+	logger *slog.Logger
 }
 
 func (l promHTTPLogger) Println(v ...interface{}) {
-	level.Error(l.logger).Log("msg", fmt.Sprint(v...))
+	l.logger.Error(fmt.Sprint(v...))
 }
 
 func init() {
@@ -73,26 +72,26 @@ func main() {
 	kingpin.Flag("consul.allow_stale", "Allows any Consul server (non-leader) to service a read.").Default("true").BoolVar(&queryOptions.AllowStale)
 	kingpin.Flag("consul.require_consistent", "Forces the read to be fully consistent.").Default("false").BoolVar(&queryOptions.RequireConsistent)
 
-	promlogConfig := &promlog.Config{}
-	flag.AddFlags(kingpin.CommandLine, promlogConfig)
+	promslogConfig := &promslog.Config{}
+	flag.AddFlags(kingpin.CommandLine, promslogConfig)
 	kingpin.Version(version.Print("consul_exporter"))
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
-	logger := promlog.New(promlogConfig)
+	logger := promslog.New(promslogConfig)
 
-	level.Info(logger).Log("msg", "Starting consul_exporter", "version", version.Info())
-	level.Info(logger).Log("build_context", version.BuildContext())
+	logger.Info("Starting consul_exporter", "version", version.Info())
+	logger.Info(version.BuildContext())
 
 	exporter, err := exporter.New(opts, queryOptions, *kvPrefix, *kvFilter, *metaFilter, *healthSummary, logger)
 	if err != nil {
-		level.Error(logger).Log("msg", "Error creating the exporter", "err", err)
+		logger.Error("Error creating the exporter", "err", err)
 		os.Exit(1)
 	}
 	prometheus.MustRegister(exporter)
 
 	queryOptionsJson, err := json.MarshalIndent(queryOptions, "", "    ")
 	if err != nil {
-		level.Error(logger).Log("msg", "Error marshaling query options", "err", err)
+		logger.Error("Error marshaling query options", "err", err)
 		os.Exit(1)
 	}
 
@@ -134,7 +133,7 @@ func main() {
 
 	srv := &http.Server{}
 	if err := web.ListenAndServe(srv, webConfig, logger); err != nil {
-		level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
+		logger.Error("Error starting HTTP server", "err", err)
 		os.Exit(1)
 	}
 }
