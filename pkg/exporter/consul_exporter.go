@@ -15,6 +15,7 @@ package exporter
 
 import (
 	"fmt"
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
 	"net/url"
@@ -23,8 +24,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 
 	consul_api "github.com/hashicorp/consul/api"
@@ -128,7 +127,7 @@ type Exporter struct {
 	metaFilter       *regexp.Regexp
 	healthSummary    bool
 	agentOnly        bool
-	logger           log.Logger
+	logger           *slog.Logger
 	requestLimitChan chan struct{}
 }
 
@@ -146,7 +145,7 @@ type ConsulOpts struct {
 }
 
 // New returns an initialized Exporter.
-func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilter string, metaFilter string, healthSummary bool, logger log.Logger) (*Exporter, error) {
+func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilter string, metaFilter string, healthSummary bool, logger *slog.Logger) (*Exporter, error) {
 	uri := opts.URI
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
@@ -256,7 +255,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 func (e *Exporter) collectPeersMetric(ch chan<- prometheus.Metric) bool {
 	peers, err := e.client.Status().Peers()
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Can't query consul", "err", err)
+		e.logger.Error("Can't query consul", "err", err)
 		return false
 	}
 	ch <- prometheus.MustNewConstMetric(
@@ -268,7 +267,7 @@ func (e *Exporter) collectPeersMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectLeaderMetric(ch chan<- prometheus.Metric) bool {
 	leader, err := e.client.Status().Leader()
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Can't query consul", "err", err)
+		e.logger.Error("Can't query consul", "err", err)
 		return false
 	}
 	if len(leader) == 0 {
@@ -286,7 +285,7 @@ func (e *Exporter) collectLeaderMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectNodesMetric(ch chan<- prometheus.Metric) bool {
 	nodes, _, err := e.client.Catalog().Nodes(&e.queryOptions)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to query catalog for nodes", "err", err)
+		e.logger.Error("Failed to query catalog for nodes", "err", err)
 		return false
 	}
 	ch <- prometheus.MustNewConstMetric(
@@ -298,7 +297,7 @@ func (e *Exporter) collectNodesMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectMembersInfoMetric(ch chan<- prometheus.Metric) bool {
 	members, err := e.client.Agent().Members(false)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to query member info", "err", err)
+		e.logger.Error("Failed to query member info", "err", err)
 		return false
 	}
 	for _, entry := range members {
@@ -313,7 +312,7 @@ func (e *Exporter) collectMembersInfoMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectMembersMetric(ch chan<- prometheus.Metric) bool {
 	members, err := e.client.Agent().Members(false)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to query member status", "err", err)
+		e.logger.Error("Failed to query member status", "err", err)
 		return false
 	}
 	for _, entry := range members {
@@ -327,7 +326,7 @@ func (e *Exporter) collectMembersMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectMembersWanInfoMetric(ch chan<- prometheus.Metric) bool {
 	members, err := e.client.Agent().Members(true)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to query wan member info", "err", err)
+		e.logger.Error("Failed to query wan member info", "err", err)
 		return false
 	}
 	for _, entry := range members {
@@ -342,7 +341,7 @@ func (e *Exporter) collectMembersWanInfoMetric(ch chan<- prometheus.Metric) bool
 func (e *Exporter) collectMembersWanMetric(ch chan<- prometheus.Metric) bool {
 	members, err := e.client.Agent().Members(true)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to query wan member status", "err", err)
+		e.logger.Error("Failed to query wan member status", "err", err)
 		return false
 	}
 	for _, entry := range members {
@@ -358,7 +357,7 @@ func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
 	if e.agentOnly {
 		services, err := e.client.Agent().Services()
 		if err != nil {
-			level.Error(e.logger).Log("msg", "Failed to query for agent services", "err", err)
+			e.logger.Error("Failed to query for agent services", "err", err)
 			return false
 		}
 		for _, srv := range services {
@@ -367,7 +366,7 @@ func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
 	} else {
 		services, _, err := e.client.Catalog().Services(&e.queryOptions)
 		if err != nil {
-			level.Error(e.logger).Log("msg", "Failed to query for services", "err", err)
+			e.logger.Error("Failed to query for services", "err", err)
 			return false
 		}
 		serviceNames = services
@@ -387,7 +386,7 @@ func (e *Exporter) collectServicesMetric(ch chan<- prometheus.Metric) bool {
 func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 	checks, _, err := e.client.Health().State("any", &e.queryOptions)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to query service health", "err", err)
+		e.logger.Error("Failed to query service health", "err", err)
 		return false
 	}
 	for _, hc := range checks {
@@ -467,23 +466,23 @@ func (e *Exporter) collectHealthSummary(ch chan<- prometheus.Metric, serviceName
 func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceName string) bool {
 	// See https://github.com/hashicorp/consul/issues/1096.
 	if strings.HasPrefix(serviceName, "/") {
-		level.Warn(e.logger).Log("msg", "Skipping service because it starts with a slash", "service_name", serviceName)
+		e.logger.Warn("Skipping service because it starts with a slash", "service_name", serviceName)
 		return true
 	}
-	level.Debug(e.logger).Log("msg", "Fetching health summary", "serviceName", serviceName)
+	e.logger.Debug("Fetching health summary", "serviceName", serviceName)
 
 	var serviceEntries []*consul_api.ServiceEntry
 
 	if e.agentOnly {
 		nodeName, err := e.client.Agent().NodeName()
 		if err != nil {
-			level.Error(e.logger).Log("msg", "Failed to query agent node name", "err", err)
+			e.logger.Error("Failed to query agent node name", "err", err)
 			return false
 		}
 
 		_, agentServices, err := e.client.Agent().AgentHealthServiceByName(serviceName)
 		if err != nil {
-			level.Error(e.logger).Log("msg", "Failed to query agent service health", "err", err)
+			e.logger.Error("Failed to query agent service health", "err", err)
 			return false
 		}
 		for _, agentService := range agentServices {
@@ -492,7 +491,7 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 	} else {
 		service, _, err := e.client.Health().Service(serviceName, "", false, &e.queryOptions)
 		if err != nil {
-			level.Error(e.logger).Log("msg", "Failed to query service health", "err", err)
+			e.logger.Error("Failed to query service health", "err", err)
 			return false
 		}
 		serviceEntries = service
@@ -510,7 +509,7 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 			}
 		}
 		if entry.Service.Service != serviceName {
-			level.Debug(e.logger).Log("msg", "Skipping service instance because its registered to %s but belongs to %s service registration", entry.Service.Service, serviceName)
+			e.logger.Debug("Skipping service instance because its registered to %s but belongs to %s service registration", entry.Service.Service, serviceName)
 			break
 		}
 		ch <- prometheus.MustNewConstMetric(
@@ -527,7 +526,7 @@ func (e *Exporter) collectOneHealthSummary(ch chan<- prometheus.Metric, serviceN
 
 		for key, val := range entry.Service.Meta {
 			if e.metaFilter.MatchString(key) {
-				level.Debug(e.logger).Log("msg", "outputting meta", key)
+				e.logger.Debug("outputting meta", "key", key)
 				ch <- prometheus.MustNewConstMetric(serviceMeta, prometheus.GaugeValue, 1, entry.Service.ID, entry.Node.Node, key, val)
 			}
 		}
@@ -543,7 +542,7 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) bool {
 	kv := e.client.KV()
 	pairs, _, err := kv.List(e.kvPrefix, &e.queryOptions)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Error fetching key/values", "err", err)
+		e.logger.Error("Error fetching key/values", "err", err)
 		return false
 	}
 
