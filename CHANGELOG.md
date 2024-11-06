@@ -1,3 +1,7 @@
+## 0.13.0 / 2024-11-06
+
+* [CHANGE] Update logging library #334
+
 ## 0.12.1 / 2024-07-31
 
 * [BUGFIX] Fix duplicate services that differ only by casing #321
