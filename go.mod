@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
-	github.com/hashicorp/consul/api v1.30.0
+	github.com/hashicorp/consul/api v1.31.0
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/common v0.61.0
