@@ -8,7 +8,7 @@ executors:
   golang:
     docker:
     # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: cimg/go:1.23
+    - image: cimg/go:1.24
 
 jobs:
   test:
@@ -25,7 +25,7 @@ jobs:
         type: string
     docker:
     # Whenever the Go version is updated here, .promu.yml should also be updated.
-    - image: cimg/go:1.22
+    - image: cimg/go:1.24
     - image: hashicorp/consul:<< parameters.consul_version >>
       name: consul
       environment:
@@ -57,9 +57,8 @@ workflows:
         matrix:
           parameters:
             consul_version:
-            - "1.16"
-            - "1.17"
             - "1.18"
+            - "1.21"
         filters:
           tags:
             only: /.*/
