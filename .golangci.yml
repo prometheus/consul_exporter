@@ -1,15 +1,30 @@
+version: "2"
 linters:
   enable:
-  - sloglint
-
-issues:
-  exclude-rules:
-  - path: _test.go
-    linters:
-    - errcheck
-
-linters-settings:
-  errcheck:
-    exclude-functions:
-      # Used in HTTP handlers, any error is handled by the server itself.
-      - (net/http.ResponseWriter).Write
+    - sloglint
+  settings:
+    errcheck:
+      exclude-functions:
+        - (net/http.ResponseWriter).Write
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+        path: _test.go
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
