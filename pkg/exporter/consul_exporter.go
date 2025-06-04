@@ -50,6 +50,11 @@ var (
 		"Does Raft cluster have a leader (according to this node).",
 		nil, nil,
 	)
+	clusterLag = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "raft_lag"),
+		"How far behind the leader a node is.",
+		[]string{"member", "member_id"}, nil,
+	)
 	nodeCount = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "serf_lan_members"),
 		"How many members are in the cluster.",
@@ -210,6 +215,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- up
 	ch <- clusterServers
 	ch <- clusterLeader
+	ch <- clusterLag
 	ch <- nodeCount
 	ch <- memberInfo
 	ch <- memberStatus
@@ -232,6 +238,7 @@ func (e *Exporter) Collect(ch chan<- prometheus.Metric) {
 	if !e.agentOnly {
 		ok = e.collectPeersMetric(ch) && ok
 		ok = e.collectLeaderMetric(ch) && ok
+		ok = e.collectLagMetric(ch) && ok
 		ok = e.collectNodesMetric(ch) && ok
 		ok = e.collectMembersInfoMetric(ch) && ok
 		ok = e.collectMembersMetric(ch) && ok
@@ -277,6 +284,30 @@ func (e *Exporter) collectLeaderMetric(ch chan<- prometheus.Metric) bool {
 	} else {
 		ch <- prometheus.MustNewConstMetric(
 			clusterLeader, prometheus.GaugeValue, 1,
+		)
+	}
+	return true
+}
+
+func (e *Exporter) collectLagMetric(ch chan<- prometheus.Metric) bool {
+	raft_config, err := e.client.Operator().RaftGetConfiguration(&e.queryOptions)
+	if err != nil {
+		e.logger.Error("Can't query consul", "err", err)
+		return false
+	}
+
+	leaderLastCommitIndex := uint64(0)
+
+	for _, raftServer := range raft_config.Servers {
+		if raftServer.Leader {
+			leaderLastCommitIndex = raftServer.LastIndex
+		}
+	}
+
+	for _, s := range raft_config.Servers {
+		lag := leaderLastCommitIndex - s.LastIndex
+		ch <- prometheus.MustNewConstMetric(
+			clusterLag, prometheus.GaugeValue, float64(lag), s.Node, s.ID,
 		)
 	}
 	return true
