@@ -20,7 +20,6 @@ import (
 	_ "net/http/pprof"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -113,7 +112,7 @@ var (
 	keyValues = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "catalog_kv"),
 		"The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted.",
-		[]string{"key"}, nil,
+		[]string{"key", "value"}, nil,
 	)
 )
 
@@ -548,12 +547,10 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) bool {
 
 	for _, pair := range pairs {
 		if e.kvFilter.MatchString(pair.Key) {
-			val, err := strconv.ParseFloat(string(pair.Value), 64)
-			if err == nil {
-				ch <- prometheus.MustNewConstMetric(
-					keyValues, prometheus.GaugeValue, val, pair.Key,
-				)
-			}
+			// val, err := strconv.ParseFloat(string(pair.Value), 64)
+			ch <- prometheus.MustNewConstMetric(
+				keyValues, prometheus.GaugeValue, 1, pair.Key, string(pair.Value),
+			)
 		}
 	}
 	return true
