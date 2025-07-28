@@ -20,6 +20,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"strings"
 
 	"github.com/alecthomas/kingpin/v2"
 	consul_api "github.com/hashicorp/consul/api"
@@ -57,8 +58,10 @@ func main() {
 
 		opts         = exporter.ConsulOpts{}
 		queryOptions = consul_api.QueryOptions{}
+		servers      string
 	)
 	kingpin.Flag("consul.server", "HTTP API address of a Consul server or agent. (prefix with https:// to connect over HTTPS)").Default("http://localhost:8500").StringVar(&opts.URI)
+	kingpin.Flag("consul.servers", "HTTP API addresses of multiple Consul servers or agents with ; sep. (prefix with https:// to connect over HTTPS)").Default("").StringVar(&servers)
 	kingpin.Flag("consul.ca-file", "File path to a PEM-encoded certificate authority used to validate the authenticity of a server certificate.").Default("").StringVar(&opts.CAFile)
 	kingpin.Flag("consul.cert-file", "File path to a PEM-encoded certificate used with the private key to verify the exporter's authenticity.").Default("").StringVar(&opts.CertFile)
 	kingpin.Flag("consul.key-file", "File path to a PEM-encoded private key used with the certificate to verify the exporter's authenticity.").Default("").StringVar(&opts.KeyFile)
@@ -82,12 +85,41 @@ func main() {
 	logger.Info("Starting consul_exporter", "version", version.Info())
 	logger.Info(version.BuildContext())
 
-	exporter, err := exporter.New(opts, queryOptions, *kvPrefix, *kvFilter, *metaFilter, *healthSummary, logger)
-	if err != nil {
-		logger.Error("Error creating the exporter", "err", err)
-		os.Exit(1)
+	// Handle multiple servers
+	var consulServers []string
+	if servers != "" {
+		// If consul.servers is specified, use it and split by semicolon
+		consulServers = strings.Split(servers, ";")
+		for i, server := range consulServers {
+			consulServers[i] = strings.TrimSpace(server)
+		}
+	} else {
+		// Use single server from consul.server
+		consulServers = []string{opts.URI}
 	}
-	prometheus.MustRegister(exporter)
+
+	// Create exporters for each server
+	var gatherers []prometheus.Gatherer
+	for i, serverURI := range consulServers {
+		serverOpts := opts
+		serverOpts.URI = serverURI
+
+		// Create a logger with server context
+		serverLogger := logger.With("consul_server", serverURI)
+
+		exporter, err := exporter.New(serverOpts, queryOptions, *kvPrefix, *kvFilter, *metaFilter, *healthSummary, serverLogger)
+		if err != nil {
+			logger.Error("Error creating the exporter", "consul_server", serverURI, "err", err)
+			os.Exit(1)
+		}
+
+		// Create a separate registry for each server
+		registry := prometheus.NewRegistry()
+		registry.MustRegister(exporter)
+		gatherers = append(gatherers, registry)
+
+		logger.Info("Registered exporter for Consul server", "consul_server", serverURI, "index", i)
+	}
 
 	queryOptionsJson, err := json.MarshalIndent(queryOptions, "", "    ")
 	if err != nil {
@@ -95,11 +127,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Create a combined gatherer from all registries
+	multiGatherer := prometheus.Gatherers(gatherers)
+
 	http.Handle(*metricsPath,
 		promhttp.InstrumentMetricHandler(
 			prometheus.DefaultRegisterer,
 			promhttp.HandlerFor(
-				prometheus.DefaultGatherer,
+				multiGatherer,
 				promhttp.HandlerOpts{
 					ErrorLog: &promHTTPLogger{
 						logger: logger,
