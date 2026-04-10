@@ -24,6 +24,7 @@ import (
 	consul_api "github.com/hashicorp/consul/api"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"github.com/prometheus/common/promslog"
 )
 
@@ -275,7 +276,7 @@ consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag2"} 1
 
 			// Only check metrics that are explicitly listed above.
 			var (
-				tp          expfmt.TextParser
+				tp          = expfmt.NewTextParser(model.UTF8Validation)
 				metricNames []string
 				buf         = bytes.NewReader(w.Bytes())
 			)
