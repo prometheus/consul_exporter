@@ -1,6 +1,6 @@
 # Consul Exporter
 
-[![CircleCI](https://circleci.com/gh/prometheus/consul_exporter/tree/master.svg?style=shield)][circleci]
+[![Build Status](https://github.com/prometheus/consul_exporter/actions/workflows/ci.yml/badge.svg)](https://github.com/prometheus/consul_exporter/actions/workflows/ci.yml)
 [![Docker Repository on Quay](https://quay.io/repository/prometheus/consul-exporter/status)][quay]
 [![Docker Pulls](https://img.shields.io/docker/pulls/prom/consul-exporter.svg?maxAge=604800)][hub]
 
@@ -133,6 +133,5 @@ To use TLS and/or basic authentication, you need to pass a configuration file
 using the `--web.config.file` parameter. The format of the file is described
 [in the exporter-toolkit repository](https://github.com/prometheus/exporter-toolkit/blob/master/docs/web-configuration.md).
 
-[circleci]: https://circleci.com/gh/prometheus/consul_exporter
 [hub]: https://hub.docker.com/r/prom/consul-exporter/
 [quay]: https://quay.io/repository/prometheus/consul-exporter

@@ -89,7 +89,7 @@ func main() {
 	}
 	prometheus.MustRegister(exporter)
 
-	queryOptionsJson, err := json.MarshalIndent(queryOptions, "", "    ")
+	queryOptionsJSON, err := json.MarshalIndent(queryOptions, "", "    ")
 	if err != nil {
 		logger.Error("Error marshaling query options", "err", err)
 		os.Exit(1)
@@ -108,25 +108,25 @@ func main() {
 			),
 		),
 	)
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.Write([]byte(`<html>
              <head><title>Consul Exporter</title></head>
              <body>
              <h1>Consul Exporter</h1>
              <p><a href='` + *metricsPath + `'>Metrics</a></p>
              <h2>Options</h2>
-             <pre>` + string(queryOptionsJson) + `</pre>
+             <pre>` + string(queryOptionsJSON) + `</pre>
              </dl>
              <h2>Build</h2>
              <pre>` + version.Info() + ` ` + version.BuildContext() + `</pre>
              </body>
              </html>`))
 	})
-	http.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/-/healthy", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
 	})
-	http.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/-/ready", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "OK")
 	})
