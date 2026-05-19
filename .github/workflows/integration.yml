@@ -1,0 +1,41 @@
+---
+name: CI
+on:
+  pull_request:
+  push:
+    branches: [master, 'release-*']
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    name: Integration tests (Consul ${{ matrix.consul_version }})
+    runs-on: ubuntu-latest
+    container:
+      # Whenever the Go version is updated here, .promu.yml should also be
+      # updated.
+      image: quay.io/prometheus/golang-builder:1.26-base
+    strategy:
+      matrix:
+        consul_version: ["1.18", "1.21", "1.22"]
+    services:
+      consul:
+        image: hashicorp/consul:${{ matrix.consul_version }}
+        env:
+          CONSUL_LOCAL_CONFIG: '{"node_name":"test"}'
+    env:
+      CONSUL_SERVER: "consul:8500"
+      CONSUL_NODE_NAME: "test"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - run: |
+          until curl -sf http://consul:8500/v1/agent/self > /dev/null; do sleep 1; done
+          CONSUL_VERSION=$(curl -s http://consul:8500/v1/agent/self | jq -r '.Config.Version')
+          test -n "$CONSUL_VERSION"
+          echo "CONSUL_VERSION=$CONSUL_VERSION" >> $GITHUB_ENV
+      - run: make test GOOPTS=-v
+      - run: git diff --exit-code
