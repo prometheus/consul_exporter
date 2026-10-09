@@ -114,6 +114,11 @@ var (
 		"The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted.",
 		[]string{"key"}, nil,
 	)
+	keyValuesBool = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "catalog_kv_bool"),
+		"The boolean values for selected keys in Consul's key/value catalog. Keys with non-boolean values are omitted.",
+		[]string{"key"}, nil,
+	)
 )
 
 // Exporter collects Consul stats from the given server and exports them using
@@ -123,6 +128,7 @@ type Exporter struct {
 	queryOptions     consul_api.QueryOptions
 	kvPrefix         string
 	kvFilter         *regexp.Regexp
+	kvBool           bool
 	metaFilter       *regexp.Regexp
 	healthSummary    bool
 	agentOnly        bool
@@ -144,7 +150,7 @@ type ConsulOpts struct {
 }
 
 // New returns an initialized Exporter.
-func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilter string, metaFilter string, healthSummary bool, logger *slog.Logger) (*Exporter, error) {
+func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilter string, metaFilter string, healthSummary bool, kvBool bool, logger *slog.Logger) (*Exporter, error) {
 	uri := opts.URI
 	if !strings.Contains(uri, "://") {
 		uri = "http://" + uri
@@ -195,6 +201,7 @@ func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilt
 		queryOptions:     queryOptions,
 		kvPrefix:         kvPrefix,
 		kvFilter:         regexp.MustCompile(kvFilter),
+		kvBool:           kvBool,
 		metaFilter:       regexp.MustCompile(metaFilter),
 		healthSummary:    healthSummary,
 		logger:           logger,
@@ -219,6 +226,7 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- nodeChecks
 	ch <- serviceChecks
 	ch <- keyValues
+	ch <- keyValuesBool
 	ch <- serviceTag
 	ch <- serviceMeta
 	ch <- serviceCheckNames
@@ -547,13 +555,43 @@ func (e *Exporter) collectKeyValues(ch chan<- prometheus.Metric) bool {
 
 	for _, pair := range pairs {
 		if e.kvFilter.MatchString(pair.Key) {
-			val, err := strconv.ParseFloat(string(pair.Value), 64)
-			if err == nil {
+			numeric, boolValue := parseKVValue(pair.Value, e.kvBool)
+			if numeric != nil {
 				ch <- prometheus.MustNewConstMetric(
-					keyValues, prometheus.GaugeValue, val, pair.Key,
+					keyValues, prometheus.GaugeValue, *numeric, pair.Key,
+				)
+			}
+			if boolValue != nil {
+				ch <- prometheus.MustNewConstMetric(
+					keyValuesBool, prometheus.GaugeValue, *boolValue, pair.Key,
 				)
 			}
 		}
 	}
 	return true
+}
+
+// parseKVValue maps a Consul KV value to a numeric and/or boolean metric.
+// Valid floats are always treated as numeric, even when they look like 1/0.
+// Boolean values are accepted only as "true" or "false" (case-insensitive,
+// surrounding whitespace ignored) when kvBool is true.
+func parseKVValue(value []byte, kvBool bool) (numeric *float64, boolValue *float64) {
+	if v, err := strconv.ParseFloat(string(value), 64); err == nil {
+		return &v, nil
+	}
+	if !kvBool {
+		return nil, nil
+	}
+
+	s := strings.TrimSpace(string(value))
+	switch {
+	case strings.EqualFold(s, "true"):
+		v := 1.0
+		return nil, &v
+	case strings.EqualFold(s, "false"):
+		v := 0.0
+		return nil, &v
+	default:
+		return nil, nil
+	}
 }
