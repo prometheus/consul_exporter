@@ -24,6 +24,7 @@ make
 | consul_serf_lan_member_status       | Status of member in the cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.                               | member                                              |
 | consul_serf_wan_member_info         | Information of member in the wan cluster.                                                            | member, dc, role, version                           |
 | consul_serf_wan_member_status       | Status of member in the wan cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.                           | member, dc                                          |
+| consul_raft_lag                     | How far behind the leader a member is.                                                               | member, member_id                                   |
 | consul_catalog_services             | How many services are in the cluster                                                                 |                                                     |
 | consul_service_tag                  | Tags of a service.                                                                                   | service_id, node, tag                               |
 | consul_catalog_service_node_healthy | Is this service healthy on this node                                                                 | service_id, node, service_name                      |
