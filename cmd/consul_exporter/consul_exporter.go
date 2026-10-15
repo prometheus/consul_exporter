@@ -46,6 +46,14 @@ func init() {
 	prometheus.MustRegister(versioncollector.NewCollector("consul_exporter"))
 }
 
+// applyQueryConsistency disables stale reads when consistent reads are required.
+// Consul rejects queries that set both ?stale and ?consistent.
+func applyQueryConsistency(q *consul_api.QueryOptions) {
+	if q.RequireConsistent {
+		q.AllowStale = false
+	}
+}
+
 func main() {
 	var (
 		webConfig     = webflag.AddFlags(kingpin.CommandLine, ":9107")
@@ -78,6 +86,11 @@ func main() {
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
 	logger := promslog.New(promslogConfig)
+
+	applyQueryConsistency(&queryOptions)
+	if queryOptions.RequireConsistent {
+		logger.Info("Stale reads were disabled because consistent reads were requested")
+	}
 
 	logger.Info("Starting consul_exporter", "version", version.Info())
 	logger.Info(version.BuildContext())

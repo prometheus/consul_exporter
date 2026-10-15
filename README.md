@@ -40,7 +40,7 @@ make
 
 * __`consul.agent-only`:__ Only export metrics about services registered on local agent.
 * __`consul.allow_stale`:__ Allows any Consul server (non-leader) to service
-    a read.
+    a read. Requiring consistent reads disables stale reads.
 * __`consul.ca-file`:__ File path to a PEM-encoded certificate authority used to
     validate the authenticity of a server certificate.
 * __`consul.cert-file`:__ File path to a PEM-encoded certificate used with the
@@ -55,6 +55,8 @@ make
     certificate to verify the exporter's authenticity.
 * __`consul.insecure`:__ Disable TLS host verification.
 * __`consul.require_consistent`:__ Forces the read to be fully consistent.
+    Requiring consistent reads disables stale reads, because Consul rejects
+    queries that set both `?stale` and `?consistent`.
 * __`consul.server`:__ Address (host and port) of the Consul instance we should
     connect to. This could be a local agent (`localhost:8500`, for instance), or
     the address of a Consul server.
