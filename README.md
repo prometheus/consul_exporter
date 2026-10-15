@@ -28,7 +28,9 @@ make
 | consul_service_tag                  | Tags of a service.                                                                                   | service_id, node, tag                               |
 | consul_catalog_service_node_healthy | Is this service healthy on this node                                                                 | service_id, node, service_name                      |
 | consul_health_node_status           | Status of health checks associated with a node                                                       | check, node, status                                 |
+| consul_health_check_notes           | Notes of health checks associated with a node. Only emitted when notes are present.                  | check, node, notes                                  |
 | consul_health_service_status        | Status of health checks associated with a service                                                    | check, node, service_id, service_name, status       |
+| consul_health_service_check_notes   | Notes of health checks associated with a service. Only emitted when notes are present.               | check, node, service_id, service_name, notes        |
 | consul_catalog_kv                   | The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted | key                                                 |
 | consul_service_checks               | Link the Consul service ID with check name if available                                              | service_id,service_name, check_id, check_name, node |
 
