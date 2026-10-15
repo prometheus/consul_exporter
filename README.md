@@ -30,6 +30,7 @@ make
 | consul_health_node_status           | Status of health checks associated with a node                                                       | check, node, status                                 |
 | consul_health_service_status        | Status of health checks associated with a service                                                    | check, node, service_id, service_name, status       |
 | consul_catalog_kv                   | The values for selected keys in Consul's key/value catalog. Keys with non-numeric values are omitted | key                                                 |
+| consul_catalog_kv_bool              | The boolean values for selected keys in Consul's key/value catalog. Opt-in via `--kv.bool`. 1=true, 0=false | key                                                 |
 | consul_service_checks               | Link the Consul service ID with check name if available                                              | service_id,service_name, check_id, check_name, node |
 
 ### Flags
@@ -77,6 +78,7 @@ exposing them to Prometheus. This can be useful, for instance, if you use
 Consul KV to store your intended cluster size, and want to graph that value
 against the actual value found via monitoring.
 
+* __`kv.bool`:__ Expose boolean Consul KV values (`true`/`false`) as `consul_catalog_kv_bool` gauges (1 for true, 0 for false). Disabled by default.
 * __`kv.filter`:__ Only store keys that match this regex pattern.
 * __`kv.prefix`:__ Prefix under which to look for KV pairs.
 
