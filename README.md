@@ -57,7 +57,8 @@ make
 * __`consul.require_consistent`:__ Forces the read to be fully consistent.
 * __`consul.server`:__ Address (host and port) of the Consul instance we should
     connect to. This could be a local agent (`localhost:8500`, for instance), or
-    the address of a Consul server.
+    the address of a Consul server. Use `unix:///path/to/consul.sock` to connect
+    over a Unix domain socket.
 * __`consul.server-name`:__ When provided, this overrides the hostname for the
     TLS certificate. It can be used to ensure that the certificate name matches
     the hostname we declare.
