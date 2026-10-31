@@ -26,6 +26,7 @@ make
 | consul_serf_wan_member_status       | Status of member in the wan cluster. 1=Alive, 2=Leaving, 3=Left, 4=Failed.                           | member, dc                                          |
 | consul_catalog_services             | How many services are in the cluster                                                                 |                                                     |
 | consul_service_tag                  | Tags of a service.                                                                                   | service_id, node, tag                               |
+| consul_service_meta_info            | Meta of a service. Only keys matching `--meta.filter` are exported                                   | service_id, node, key, value                        |
 | consul_catalog_service_node_healthy | Is this service healthy on this node                                                                 | service_id, node, service_name                      |
 | consul_health_node_status           | Status of health checks associated with a node                                                       | check, node, status                                 |
 | consul_health_service_status        | Status of health checks associated with a service                                                    | check, node, service_id, service_name, status       |
@@ -50,7 +51,7 @@ make
     Consul API queries to gather all information about each service. Health check
     information are available via `consul_health_service_status` as well, but
     only for services which have a health check configured. Defaults to true.
-    Disable using `--no-consul.heatlh-summary`.
+    Disable using `--no-consul.health-summary`.
 * __`consul.key-file`:__ File path to a PEM-encoded private key used with the
     certificate to verify the exporter's authenticity.
 * __`consul.insecure`:__ Disable TLS host verification.
@@ -63,9 +64,12 @@ make
     the hostname we declare.
 * __`consul.timeout`:__ Timeout on HTTP requests to consul.
 * __`consul.request-limit`:__ Limit the maximum number of concurrent requests to consul, 0 means no limit.
-* __`log.format`:__ Set the log target and format. Example: `logger:syslog?appname=bob&local=7`
-    or `logger:stdout?json=true`
-* __`log.level`:__ Logging level. `info` by default.
+* __`log.format`:__ Output format of log messages. One of `logfmt` (default)
+    or `json`.
+* __`log.level`:__ Only log messages with the given severity or above. One of
+    `debug`, `info` (default), `warn` or `error`.
+* __`meta.filter`:__ Only export service meta keys that match this regex pattern
+    as `consul_service_meta_info`. Defaults to `^$`, which exports none.
 * __`web.listen-address`:__ Address to listen on for web interface and telemetry.
 * __`web.telemetry-path`:__ Path under which to expose metrics.
 * __`version`:__ Show application version.
