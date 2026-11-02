@@ -176,6 +176,38 @@ consul_catalog_services 3
 			},
 		},
 		{
+			name: "collect with service names differing only by case",
+			metrics: `# HELP consul_catalog_service_node_healthy Is this service healthy on this node?
+# TYPE consul_catalog_service_node_healthy gauge
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="consul",service_name="consul"} 1
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="redis-1",service_name="redis"} 1
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="redis-2",service_name="REDIS"} 1
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="redis-3",service_name="redis"} 1
+consul_catalog_service_node_healthy{node="{{ .Node }}",service_id="redis-4",service_name="REDIS"} 1
+# HELP consul_catalog_services How many services are in the cluster.
+# TYPE consul_catalog_services gauge
+consul_catalog_services 3
+`,
+			services: []*consul_api.AgentServiceRegistration{
+				&consul_api.AgentServiceRegistration{
+					ID:   "redis-1",
+					Name: "redis",
+				},
+				&consul_api.AgentServiceRegistration{
+					ID:   "redis-2",
+					Name: "REDIS",
+				},
+				&consul_api.AgentServiceRegistration{
+					ID:   "redis-3",
+					Name: "redis",
+				},
+				&consul_api.AgentServiceRegistration{
+					ID:   "redis-4",
+					Name: "REDIS",
+				},
+			},
+		},
+		{
 			name: "collect with service check name",
 			metrics: `# HELP consul_service_checks Link the service id and check name if available.
 # TYPE consul_service_checks gauge
