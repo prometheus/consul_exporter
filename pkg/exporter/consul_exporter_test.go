@@ -22,6 +22,7 @@ import (
 	"time"
 
 	consul_api "github.com/hashicorp/consul/api"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/prometheus/common/expfmt"
 	"github.com/prometheus/common/model"
@@ -48,6 +49,90 @@ func TestNewExporter(t *testing.T) {
 		if !test.ok && err == nil {
 			t.Errorf("expected error w/ %q, but got %q", test.uri, err)
 		}
+	}
+}
+
+func TestHealthCheckNotes(t *testing.T) {
+	cases := []struct {
+		name       string
+		hc         *consul_api.HealthCheck
+		wantEmit   bool
+		wantDesc   *prometheus.Desc
+		wantLabels []string
+	}{
+		{
+			name:     "nil check",
+			hc:       nil,
+			wantEmit: false,
+		},
+		{
+			name: "empty node notes",
+			hc: &consul_api.HealthCheck{
+				CheckID: "serfHealth",
+				Node:    "node-a",
+				Notes:   "",
+			},
+			wantEmit: false,
+		},
+		{
+			name: "node notes",
+			hc: &consul_api.HealthCheck{
+				CheckID: "serfHealth",
+				Node:    "node-a",
+				Notes:   "agent is alive",
+			},
+			wantEmit:   true,
+			wantDesc:   nodeCheckNotes,
+			wantLabels: []string{"serfHealth", "node-a", "agent is alive"},
+		},
+		{
+			name: "empty service notes",
+			hc: &consul_api.HealthCheck{
+				CheckID:     "service:web",
+				Node:        "node-a",
+				ServiceID:   "web",
+				ServiceName: "web",
+				Notes:       "",
+			},
+			wantEmit: false,
+		},
+		{
+			name: "service notes",
+			hc: &consul_api.HealthCheck{
+				CheckID:     "service:web",
+				Node:        "node-a",
+				ServiceID:   "web",
+				ServiceName: "web",
+				Notes:       "tcp timeout",
+			},
+			wantEmit:   true,
+			wantDesc:   serviceCheckNotes,
+			wantLabels: []string{"service:web", "node-a", "web", "web", "tcp timeout"},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gotDesc, gotLabels, gotEmit := healthCheckNotes(tc.hc)
+			if gotEmit != tc.wantEmit {
+				t.Fatalf("emit = %v, want %v", gotEmit, tc.wantEmit)
+			}
+			if !tc.wantEmit {
+				return
+			}
+			if gotDesc != tc.wantDesc {
+				t.Errorf("desc = %v, want %v", gotDesc, tc.wantDesc)
+			}
+			if len(gotLabels) != len(tc.wantLabels) {
+				t.Fatalf("labels = %v, want %v", gotLabels, tc.wantLabels)
+			}
+			for i := range tc.wantLabels {
+				if gotLabels[i] != tc.wantLabels[i] {
+					t.Errorf("labels = %v, want %v", gotLabels, tc.wantLabels)
+					break
+				}
+			}
+		})
 	}
 }
 
