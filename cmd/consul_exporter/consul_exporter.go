@@ -53,6 +53,7 @@ func main() {
 		healthSummary = kingpin.Flag("consul.health-summary", "Generate a health summary for each service instance. Needs n+1 queries to collect all information.").Default("true").Bool()
 		kvPrefix      = kingpin.Flag("kv.prefix", "Prefix from which to expose key/value pairs.").Default("").String()
 		kvFilter      = kingpin.Flag("kv.filter", "Regex that determines which keys to expose.").Default(".*").String()
+		kvBool        = kingpin.Flag("kv.bool", "Expose boolean Consul KV values as 0/1.").Default("false").Bool()
 		metaFilter    = kingpin.Flag("meta.filter", "Regex that determines which meta keys to expose.").Default("^$").String()
 
 		opts         = exporter.ConsulOpts{}
@@ -82,7 +83,7 @@ func main() {
 	logger.Info("Starting consul_exporter", "version", version.Info())
 	logger.Info(version.BuildContext())
 
-	exporter, err := exporter.New(opts, queryOptions, *kvPrefix, *kvFilter, *metaFilter, *healthSummary, logger)
+	exporter, err := exporter.New(opts, queryOptions, *kvPrefix, *kvFilter, *metaFilter, *healthSummary, *kvBool, logger)
 	if err != nil {
 		logger.Error("Error creating the exporter", "err", err)
 		os.Exit(1)
