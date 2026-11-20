@@ -99,10 +99,20 @@ var (
 		"Status of health checks associated with a node.",
 		[]string{"check", "node", "status"}, nil,
 	)
+	nodeCheckNotes = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "health_check_notes"),
+		"Notes of health checks associated with a node.",
+		[]string{"check", "node", "notes"}, nil,
+	)
 	serviceChecks = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "health_service_status"),
 		"Status of health checks associated with a service.",
 		[]string{"check", "node", "service_id", "service_name", "status"}, nil,
+	)
+	serviceCheckNotes = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "", "health_service_check_notes"),
+		"Notes of health checks associated with a service.",
+		[]string{"check", "node", "service_id", "service_name", "notes"}, nil,
 	)
 	serviceCheckNames = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "", "service_checks"),
@@ -217,7 +227,9 @@ func (e *Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- serviceCount
 	ch <- serviceNodesHealthy
 	ch <- nodeChecks
+	ch <- nodeCheckNotes
 	ch <- serviceChecks
+	ch <- serviceCheckNotes
 	ch <- keyValues
 	ch <- serviceTag
 	ch <- serviceMeta
@@ -432,8 +444,25 @@ func (e *Exporter) collectHealthStateMetric(ch chan<- prometheus.Metric) bool {
 				serviceCheckNames, prometheus.GaugeValue, 1, hc.ServiceID, hc.ServiceName, hc.CheckID, hc.Name, hc.Node,
 			)
 		}
+		if desc, labels, ok := healthCheckNotes(hc); ok {
+			ch <- prometheus.MustNewConstMetric(
+				desc, prometheus.GaugeValue, 1, labels...,
+			)
+		}
 	}
 	return true
+}
+
+// healthCheckNotes maps a Consul health check to a notes info metric.
+// Empty notes are skipped so high-cardinality optional text is not always present.
+func healthCheckNotes(hc *consul_api.HealthCheck) (*prometheus.Desc, []string, bool) {
+	if hc == nil || hc.Notes == "" {
+		return nil, nil, false
+	}
+	if hc.ServiceID == "" {
+		return nodeCheckNotes, []string{hc.CheckID, hc.Node, hc.Notes}, true
+	}
+	return serviceCheckNotes, []string{hc.CheckID, hc.Node, hc.ServiceID, hc.ServiceName, hc.Notes}, true
 }
 
 // collectHealthSummary collects health information about every node+service
