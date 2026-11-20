@@ -14,8 +14,10 @@
 package exporter
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -153,7 +155,18 @@ func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilt
 	if err != nil {
 		return nil, fmt.Errorf("invalid consul URL: %s", err)
 	}
-	if u.Host == "" || (u.Scheme != "http" && u.Scheme != "https") {
+	socketPath := ""
+	switch u.Scheme {
+	case "http", "https":
+		if u.Host == "" {
+			return nil, fmt.Errorf("invalid consul URL: %s", uri)
+		}
+	case "unix":
+		socketPath = u.Host + u.Path
+		if socketPath == "" {
+			return nil, fmt.Errorf("invalid consul URL: %s", uri)
+		}
+	default:
 		return nil, fmt.Errorf("invalid consul URL: %s", uri)
 	}
 
@@ -173,6 +186,16 @@ func New(opts ConsulOpts, queryOptions consul_api.QueryOptions, kvPrefix, kvFilt
 	config := consul_api.DefaultConfig()
 	config.Address = u.Host
 	config.Scheme = u.Scheme
+	if socketPath != "" {
+		// Requests are sent over the Unix domain socket; the address is only
+		// used to build the request URL and the Host header.
+		transport.DialContext = func(ctx context.Context, _, _ string) (net.Conn, error) {
+			var d net.Dialer
+			return d.DialContext(ctx, "unix", socketPath)
+		}
+		config.Address = "localhost"
+		config.Scheme = "http"
+	}
 	if config.HttpClient == nil {
 		config.HttpClient = &http.Client{}
 	}

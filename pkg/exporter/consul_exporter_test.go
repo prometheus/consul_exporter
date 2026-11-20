@@ -15,8 +15,13 @@ package exporter
 
 import (
 	"bytes"
+	"fmt"
 	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"text/template"
 	"time"
@@ -38,6 +43,8 @@ func TestNewExporter(t *testing.T) {
 		{uri: "https://localhost:8500", ok: true},
 		{uri: "http://some.where:8500", ok: true},
 		{uri: "fuuuu://localhost:8500", ok: false},
+		{uri: "unix:///var/run/consul.sock", ok: true},
+		{uri: "unix://", ok: false},
 	}
 
 	for _, test := range cases {
@@ -48,6 +55,36 @@ func TestNewExporter(t *testing.T) {
 		if !test.ok && err == nil {
 			t.Errorf("expected error w/ %q, but got %q", test.uri, err)
 		}
+	}
+}
+
+func TestUnixSocket(t *testing.T) {
+	sock := filepath.Join(t.TempDir(), "c.sock")
+	l, err := net.Listen("unix", sock)
+	if err != nil {
+		t.Skipf("unix sockets not available: %s", err)
+	}
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/status/leader" {
+			http.NotFound(w, r)
+			return
+		}
+		fmt.Fprint(w, `"10.0.0.1:8300"`)
+	}))
+	srv.Listener = l
+	srv.Start()
+	defer srv.Close()
+
+	e, err := New(ConsulOpts{URI: "unix://" + filepath.ToSlash(sock), Timeout: 5 * time.Second}, consul_api.QueryOptions{}, "", ".*", "", true, promslog.NewNopLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	leader, err := e.client.Status().Leader()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if leader != "10.0.0.1:8300" {
+		t.Errorf("unexpected leader %q", leader)
 	}
 }
 
