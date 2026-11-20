@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"io"
 	"os"
+	"strconv"
 	"testing"
 	"text/template"
 	"time"
@@ -41,7 +42,7 @@ func TestNewExporter(t *testing.T) {
 	}
 
 	for _, test := range cases {
-		_, err := New(ConsulOpts{URI: test.uri}, consul_api.QueryOptions{}, "", ".*", "", true, promslog.NewNopLogger())
+		_, err := New(ConsulOpts{URI: test.uri}, consul_api.QueryOptions{}, "", ".*", "", true, false, promslog.NewNopLogger())
 		if test.ok && err != nil {
 			t.Errorf("expected no error w/ %q, but got %q", test.uri, err)
 		}
@@ -243,7 +244,7 @@ consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag2"} 1
 					URI:          addr,
 					Timeout:      time.Duration(time.Second),
 					RequestLimit: tc.requestLimit,
-				}, consul_api.QueryOptions{}, "", "", "meta_.*", true, promslog.NewNopLogger())
+				}, consul_api.QueryOptions{}, "", "", "meta_.*", true, false, promslog.NewNopLogger())
 			if err != nil {
 				t.Errorf("expected no error but got %q", err)
 			}
@@ -295,4 +296,50 @@ consul_service_tag{node="{{ .Node }}",service_id="foobar",tag="tag2"} 1
 			}
 		})
 	}
+}
+
+func TestParseKVValue(t *testing.T) {
+	ptr := func(v float64) *float64 { return &v }
+
+	cases := []struct {
+		name    string
+		value   []byte
+		kvBool  bool
+		numeric *float64
+		boolVal *float64
+	}{
+		{name: "true lowercase", value: []byte("true"), kvBool: true, boolVal: ptr(1)},
+		{name: "false lowercase", value: []byte("false"), kvBool: true, boolVal: ptr(0)},
+		{name: "true mixed case", value: []byte("True"), kvBool: true, boolVal: ptr(1)},
+		{name: "false mixed case", value: []byte("FALSE"), kvBool: true, boolVal: ptr(0)},
+		{name: "true trimmed", value: []byte("  true\n"), kvBool: true, boolVal: ptr(1)},
+		{name: "false trimmed", value: []byte("\tfalse "), kvBool: true, boolVal: ptr(0)},
+		{name: "numeric integer", value: []byte("42"), kvBool: true, numeric: ptr(42)},
+		{name: "numeric float", value: []byte("3.14"), kvBool: true, numeric: ptr(3.14)},
+		{name: "numeric one stays numeric", value: []byte("1"), kvBool: true, numeric: ptr(1)},
+		{name: "numeric zero stays numeric", value: []byte("0"), kvBool: true, numeric: ptr(0)},
+		{name: "yes omitted", value: []byte("yes"), kvBool: true},
+		{name: "bool disabled omits true", value: []byte("true"), kvBool: false},
+		{name: "bool disabled omits false", value: []byte("false"), kvBool: false},
+		{name: "bool disabled keeps numeric", value: []byte("9"), kvBool: false, numeric: ptr(9)},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			numeric, boolVal := parseKVValue(tc.value, tc.kvBool)
+			if got, want := floatPtrString(numeric), floatPtrString(tc.numeric); got != want {
+				t.Errorf("numeric = %s, want %s", got, want)
+			}
+			if got, want := floatPtrString(boolVal), floatPtrString(tc.boolVal); got != want {
+				t.Errorf("boolValue = %s, want %s", got, want)
+			}
+		})
+	}
+}
+
+func floatPtrString(v *float64) string {
+	if v == nil {
+		return "<nil>"
+	}
+	return strconv.FormatFloat(*v, 'g', -1, 64)
 }
